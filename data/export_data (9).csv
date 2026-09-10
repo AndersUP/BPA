@@ -1,0 +1,4 @@
+﻿"Target","Status","Blockers","Compute $/mo","Storage $/mo","SQL License $/mo","Windows License $/mo","Total $/mo","Recommended SKU"
+"SQL Managed Instance","Ready","0",490.26,"0","","",490.26,"General Purpose Gen5  vCores"
+"SQL Database","NotReady","0",245.13,0.18,"","",245.31,"General Purpose  vCores"
+"SQL Server on Azure VM","Ready","0",81.98,2.4,"","",84.38,""
