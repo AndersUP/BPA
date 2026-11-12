@@ -1,0 +1,24 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "location": { "type": "string" },
+    "hostName": { "type": "string" },
+    "script": { "type": "string" },
+    "configuration": { "type": "secureObject" },
+    "runName": { "type": "string" }
+  },
+  "resources": [{
+    "type": "Microsoft.Compute/virtualMachines/runCommands",
+    "apiVersion": "2024-07-01",
+    "name": "[concat(parameters('hostName'), '/', parameters('runName'))]",
+    "location": "[parameters('location')]",
+    "properties": {
+      "source": { "script": "[parameters('script')]" },
+      "protectedParameters": [{ "name": "ConfigurationJson", "value": "[string(parameters('configuration'))]" }],
+      "asyncExecution": true,
+      "timeoutInSeconds": 14400,
+      "treatFailureAsDeploymentFailure": true
+    }
+  }]
+}

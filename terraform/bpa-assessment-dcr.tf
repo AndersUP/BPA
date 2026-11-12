@@ -10,6 +10,26 @@ resource "azurerm_monitor_data_collection_endpoint" "bpa_assessment" {
 }
 
 # Data Collection Rule for BPA Assessment CSV Files
+resource "azapi_resource" "sql_assessment_table" {
+  type      = "Microsoft.OperationalInsights/workspaces/tables@2022-10-01"
+  name      = "SqlAssessment_CL"
+  parent_id = azurerm_log_analytics_workspace.bpa.id
+
+  body = {
+    properties = {
+      plan            = "Analytics"
+      retentionInDays = 30
+      schema = {
+        name = "SqlAssessment_CL"
+        columns = [
+          { name = "TimeGenerated", type = "datetime" },
+          { name = "RawData", type = "string" }
+        ]
+      }
+    }
+  }
+}
+
 resource "azurerm_monitor_data_collection_rule" "bpa_assessment" {
   name                = "${var.prefix}-bpa-dcr"
   resource_group_name = azurerm_resource_group.main.name
@@ -68,6 +88,7 @@ resource "azurerm_monitor_data_collection_rule" "bpa_assessment" {
   description = "Data Collection Rule for SQL Best Practices Assessment - CSV file ingestion"
 
   depends_on = [
+    azapi_resource.sql_assessment_table,
     azurerm_log_analytics_workspace.bpa,
     azurerm_monitor_data_collection_endpoint.bpa_assessment
   ]
@@ -96,5 +117,4 @@ resource "azurerm_monitor_data_collection_rule_association" "bpa_dce_azure_vms" 
   description = "Associates BPA DCE with ${each.key}"
 }
 
-# Note: Arc machine associations will be created via PowerShell in Create-LabEnvironment.ps1
-# because Arc machine resource IDs are dynamic and not known at Terraform plan time
+# Arc machine associations are configured separately; see docs/MONITORING-SETUP.md.

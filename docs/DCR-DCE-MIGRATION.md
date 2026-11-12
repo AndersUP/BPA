@@ -1,203 +1,94 @@
-# Migrating DCR/DCE to Terraform Management
+# Migrating existing DCR/DCE resources to Terraform
 
-This document explains how to migrate existing Data Collection Rules (DCR) and Data Collection Endpoints (DCE) from PowerShell auto-creation to Terraform management.
+[Back to the Azure lab guide](AZURE-TERRAFORM-LAB.md)
 
-## Background
+The lab manages a shared DCE, BPA/performance DCRs, and Azure VM associations
+through [bpa-assessment-dcr.tf](../terraform/bpa-assessment-dcr.tf) and
+[performance-counters-dcr.tf](../terraform/performance-counters-dcr.tf).
+Use explicit Terraform imports for pre-existing resources. No discovery/import
+helper script is required.
 
-Previously, DCRs and DCEs were auto-created by the Azure CLI command `az sql vm update --enable-assessment`. This approach worked but made it difficult to version control and manage the infrastructure as code.
+## 1. Inventory and back up
 
-Now, all DCRs and DCEs are defined in Terraform for better control and repeatability.
-
-## Architecture Overview
-
-After migration, you will have:
-
-| Resource | Name | Purpose | Managed By |
-|----------|------|---------|------------|
-| **Shared DCE** | `{prefix}-dce` | Shared endpoint for all data uploads | Terraform |
-| **BPA DCR** | `{prefix}-bpa-dcr` | BPA CSV file ingestion | Terraform |
-| **Perf DCR** | `{prefix}-sql-perfcounters-dcr` | Performance counter collection | Terraform |
-
-**Both DCRs use the same shared DCE** and send data to Log Analytics workspace: `{prefix}-law`
-
-> **Note:** Azure Monitor Agent best practice is to use a single DCE per environment rather than creating separate DCEs for each data type. Multiple DCRs can share the same DCE.
-
-## Migration Steps
-
-### For Existing Deployments (Resources Already Exist)
-
-If you've already run the PowerShell scripts and have existing DCR/DCE resources:
-
-#### 1. **Backup Current State**
-```powershell
-# List existing DCRs and DCEs
-az monitor data-collection rule list --resource-group sql-bpa-lab-rg --output table
-az monitor data-collection endpoint list --resource-group sql-bpa-lab-rg --output table
-
-# Save the configuration
-az monitor data-collection rule show --name <dcr-name> --resource-group sql-bpa-lab-rg > backup-dcr.json
-az monitor data-collection endpoint show --name <dce-name> --resource-group sql-bpa-lab-rg > backup-dce.json
-```
-
-#### 2. **Import Existing Resources into Terraform**
-
-Run the import helper script:
-```powershell
-.\Import-DcrDceToTerraform.ps1
-```
-
-This script will:
-- Find your existing BPA Assessment DCR and DCE
-- Import them into Terraform state
-- Provide guidance on next steps
-
-#### 3. **Verify Terraform Configuration**
+Authenticate to the intended subscription, then list resources:
 
 ```powershell
-cd terraform
-terraform plan
+az account set --subscription "<subscription-id>"
+az monitor data-collection rule list -g "<resource-group>" -o table
+az monitor data-collection endpoint list -g "<resource-group>" -o table
+az monitor data-collection rule association list --resource "<machine-resource-id>"
 ```
 
-Review the plan output carefully:
-- If you see **no changes** or only minor formatting differences, you're good to proceed
-- If you see **destroy/recreate**, the Terraform config doesn't match existing resources perfectly
+Save resource configurations and securely back up existing Terraform state
+before migration. Check each rule's source paths, streams, transformations,
+destination workspace, and endpoint. Do not select the first matching rule by
+name pattern alone.
 
-#### 4. **Apply Any Necessary Changes**
+## 2. Reconcile configuration before importing
+
+The lab defaults are:
+
+| Resource | Name |
+|---|---|
+| Shared endpoint | `<prefix>-dce` |
+| Assessment rule | `<prefix>-bpa-dcr` |
+| Performance rule | `<prefix>-sql-perfcounters-dcr` |
+| Assessment table | `SqlAssessment_CL` |
+
+Azure assessment-managed `sqlbpa-*` resources may differ from these definitions.
+Import does not rename resources or make the assessment service adopt an
+arbitrary DCR. Align the Terraform names and properties with the resources you
+intend to retain before applying; review [Arc DCR reuse](ENABLE-ARC-SQL-BPA.md)
+if the assessment service owns the collection pipeline.
+
+## 3. Import verified resource IDs
+
+Initialize Terraform as described in the lab guide. From the Terraform
+directory, substitute the actual resource IDs:
 
 ```powershell
-terraform apply
+terraform import azurerm_monitor_data_collection_endpoint.bpa_assessment `
+    "/subscriptions/<subscription-id>/resourceGroups/<resource-group>/providers/Microsoft.Insights/dataCollectionEndpoints/<dce-name>"
+
+terraform import azurerm_monitor_data_collection_rule.bpa_assessment `
+    "/subscriptions/<subscription-id>/resourceGroups/<resource-group>/providers/Microsoft.Insights/dataCollectionRules/<bpa-dcr-name>"
+
+terraform import azurerm_monitor_data_collection_rule.sql_perf_counters `
+    "/subscriptions/<subscription-id>/resourceGroups/<resource-group>/providers/Microsoft.Insights/dataCollectionRules/<perf-dcr-name>"
 ```
 
-This will bring the resources under Terraform management without disrupting them.
+Also import existing associations instead of attempting duplicate creation.
+For example:
 
-#### 5. **Update PowerShell Scripts**
-
-The `Create-LabEnvironment.ps1` script has been updated to:
-- Reference Terraform-created DCR/DCE instead of creating them
-- Only associate Arc machines with the existing resources
-- Not modify or update the DCR configuration
-
-### For New Deployments (Clean Start)
-
-If you're deploying from scratch:
-
-#### 1. **Deploy Terraform First**
 ```powershell
-cd terraform
-terraform init
-terraform plan
-terraform apply
+terraform import 'azurerm_monitor_data_collection_rule_association.bpa_azure_vms[\"sql-bpa-01\"]' `
+    "<vm-resource-id>/providers/Microsoft.Insights/dataCollectionRuleAssociations/<existing-association-name>"
 ```
 
-This creates all infrastructure including DCR/DCE.
+Use the corresponding `sql_vms_perf["<vm-name>"]` and
+`bpa_dce_azure_vms["<vm-name>"]` addresses for performance and endpoint
+associations. The DCE association name is `configurationAccessEndpoint`.
+Repeat only for resources that already exist and are not already tracked.
 
-#### 2. **Run Create-LabEnvironment.ps1**
+The lab also manages SQL IaaS resources, AMA, and the custom assessment table.
+See [existing SQL VM resources](AZURE-TERRAFORM-LAB.md#existing-sql-vm-resources)
+and [alert imports](CREATING-ALERTS.md#import-existing-script-created-resources)
+when adopting a previously deployed lab.
+
+## 4. Review, apply, and verify
+
 ```powershell
-cd ..
-.\Create-LabEnvironment.ps1
+terraform plan -out=migration.tfplan
+terraform apply migration.tfplan
 ```
 
-The script will:
-- Use the Terraform-created DCR/DCE  
-- Associate them with Arc machines
-- Configure SQL BPA on all VMs
+Stop and investigate any unexpected replacement, deletion, schema change, or
+destination change. Do not delete a working collection pipeline merely to
+resolve a Terraform conflict. Importing alone does not ensure a non-destructive
+apply.
 
-## Important Notes
-
-### ⚠️ About `Install-SqlIaaSExtension-BPA.ps1`
-
-The `Install-SqlIaaSExtension-BPA.ps1` script still uses `--enable-assessment` which attempts to auto-create a DCR/DCE. This is necessary to enable the assessment feature on Azure SQL VMs.
-
-**What happens:**
-- If DCR/DCE with matching names already exist (created by Terraform), Azure will use them
-- If not, Azure creates new ones (which should then be imported into Terraform)
-
-**Best practice:** Always run `terraform apply` before running the Install script to ensure Terraform-managed resources exist first.
-
-### Resource Naming
-
-Terraform creates resources with predictable names:
-- DCE: `{prefix}-dce`
-- DCR: `{prefix}-bpa-dcr`
-
-Azure's auto-created names are typically: `{guid}_{location}_DCR_1`
-
-### Associations
-
-**Azure VMs:**
-- DCR associations: Managed by Terraform (`azurerm_monitor_data_collection_rule_association.bpa_azure_vms`)
-- DCE associations: Managed by Terraform (`azurerm_monitor_data_collection_rule_association.bpa_dce_azure_vms`)
-
-**Arc Machines:**
-- DCR associations: Created by PowerShell (dynamic, IDs not known at Terraform plan time)
-- DCE associations: Created by PowerShell
-
-## Troubleshooting
-
-### Conflict: Resource Already Exists
-
-If you get errors about resources already existing:
-
-```
-Error: A resource with the ID "/subscriptions/.../providers/Microsoft.Insights/dataCollectionRules/..." already exists
-```
-
-**Solution:** Import the existing resource
-```powershell
-terraform import azurerm_monitor_data_collection_rule.bpa_assessment "<full-resource-id>"
-```
-
-### Plan Shows Unexpected Changes
-
-If `terraform plan` shows changes you don't expect:
-
-1. **Compare configurations:** Check the Terraform config against the existing resource JSON
-2. **Check for drift:** Use `terraform refresh` to update state
-3. **Review sensitive values:** Some fields like `settings.text.recordStartTimestampFormat` may differ
-
-### PowerShell Can't Find DCR/DCE
-
-If the PowerShell script reports:
-```
-ERROR: BPA DCR or DCE not found. Ensure 'terraform apply' completed successfully.
-```
-
-**Solution:**
-1. Verify Terraform deployed successfully: `cd terraform && terraform state list`
-2. Check resources exist: `az monitor data-collection rule list --resource-group sql-bpa-lab-rg`
-3. Verify naming: Resources should be named `{prefix}-dce` and `{prefix}-bpa-dcr`
-
-## Rollback Plan
-
-If migration causes issues, you can rollback:
-
-1. **Remove Terraform-managed resources from state (don't destroy):**
-   ```powershell
-   terraform state rm azurerm_monitor_data_collection_rule.bpa_assessment
-   terraform state rm azurerm_monitor_data_collection_endpoint.bpa_assessment
-   ```
-
-2. **Continue using PowerShell-managed resources** as before
-
-3. **Revert Create-LabEnvironment.ps1** to previous version
-
-## File Changes Summary
-
-### New Files
-- `terraform/bpa-assessment-dcr.tf` - BPA DCR/DCE Terraform config
-- `terraform/performance-counters-dcr.tf` - Performance counter DCR/DCE Terraform config (already created)
-- `Import-DcrDceToTerraform.ps1` - Helper script for importing existing resources
-- `docs/DCR-DCE-MIGRATION.md` - This file
-
-### Modified Files
-- `Create-LabEnvironment.ps1` - Simplified to use Terraform-created DCR/DCE, removed DCR update logic
-- `Install-SqlIaaSExtension-BPA.ps1` - No changes (still auto-creates, but defers to existing if present)
-
-## Benefits
-
-After migration:
-✅ All infrastructure defined in version-controlled Terraform  
-✅ Repeatable deployments with `terraform apply`
-✅ Clear dependency management and resource relationships
-✅ Easier to modify DCR configuration (just edit .tf file)
-✅ State management and drift detection via Terraform
+After applying, verify AMA health and data in `Perf`, `Heartbeat`, and
+`SqlAssessment_CL` using [the monitoring guide](MONITORING-SETUP.md).
+Avoid duplicate CSV collection and verify ingestion before retiring old
+associations. Arc machine associations remain outside this lab's Terraform
+configuration and require separate management.

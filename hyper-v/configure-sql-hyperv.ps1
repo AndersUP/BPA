@@ -97,7 +97,9 @@ foreach ($key in $downloads.Keys) {
     $dl = $downloads[$key]
     if (-not (Test-Path $dl.BakFile)) {
         Write-Log "Downloading $key..."
-        Invoke-WebRequest -Uri $dl.Url -OutFile $dl.BakFile -UseBasicParsing
+        $partialFile = "$($dl.BakFile).partial"
+        Invoke-WebRequest -Uri $dl.Url -OutFile $partialFile -UseBasicParsing
+        Move-Item -LiteralPath $partialFile -Destination $dl.BakFile -Force
         Write-Log "Downloaded $key."
     } else {
         Write-Log "$key already downloaded."
@@ -163,21 +165,28 @@ CREATE DATABASE [MisconfigDemo]
 ON PRIMARY (NAME = N'MisconfigDemo', FILENAME = N'$mdf', SIZE = 8MB, FILEGROWTH = 10%)
 LOG ON (NAME = N'MisconfigDemo_log', FILENAME = N'$ldf', SIZE = 8MB, FILEGROWTH = 10%);
 "@
-
+    } else {
+        Write-Log "MisconfigDemo already exists; checking sample schema."
+    }
         Invoke-Sqlcmd -ServerInstance $sqlInstance -TrustServerCertificate -QueryTimeout 120 -Query @"
 USE [MisconfigDemo];
+SET XACT_ABORT ON;
+BEGIN TRANSACTION;
 
+IF OBJECT_ID(N'dbo.Customers', N'U') IS NULL
 CREATE TABLE dbo.Customers (
     CustomerID INT IDENTITY(1,1) PRIMARY KEY,
     FirstName NVARCHAR(50), LastName NVARCHAR(50),
     Email NVARCHAR(100), CreatedDate DATETIME DEFAULT GETDATE()
 );
+IF OBJECT_ID(N'dbo.Orders', N'U') IS NULL
 CREATE TABLE dbo.Orders (
     OrderID INT IDENTITY(1,1) PRIMARY KEY,
     CustomerID INT FOREIGN KEY REFERENCES dbo.Customers(CustomerID),
     OrderDate DATETIME DEFAULT GETDATE(),
     TotalAmount DECIMAL(18,2), Status NVARCHAR(20)
 );
+IF OBJECT_ID(N'dbo.OrderItems', N'U') IS NULL
 CREATE TABLE dbo.OrderItems (
     OrderItemID INT IDENTITY(1,1) PRIMARY KEY,
     OrderID INT FOREIGN KEY REFERENCES dbo.Orders(OrderID),
@@ -188,12 +197,13 @@ SET NOCOUNT ON;
 DECLARE @i INT = 1;
 WHILE @i <= 1000
 BEGIN
+    IF NOT EXISTS (SELECT 1 FROM dbo.Customers WHERE Email = CONCAT('user', @i, '@example.com'))
     INSERT INTO dbo.Customers (FirstName, LastName, Email)
     VALUES (CONCAT('First', @i), CONCAT('Last', @i), CONCAT('user', @i, '@example.com'));
     SET @i = @i + 1;
 END;
 
-DECLARE @j INT = 1;
+DECLARE @j INT = (SELECT COUNT(*) + 1 FROM dbo.Orders);
 WHILE @j <= 5000
 BEGIN
     INSERT INTO dbo.Orders (CustomerID, OrderDate, TotalAmount, Status)
@@ -207,11 +217,9 @@ BEGIN
     );
     SET @j = @j + 1;
 END;
+COMMIT TRANSACTION;
 "@
         Write-Log "MisconfigDemo created with sample data."
-    } else {
-        Write-Log "MisconfigDemo already exists."
-    }
 }
 
 # ---------------------------------------------------------------------------

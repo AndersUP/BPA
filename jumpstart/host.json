@@ -1,0 +1,118 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "location": { "type": "string" },
+    "hostName": { "type": "string", "maxLength": 15 },
+    "vmSize": { "type": "string", "defaultValue": "Standard_D16s_v5" },
+    "adminUsername": { "type": "string" },
+    "adminPassword": { "type": "securestring", "minLength": 12 }
+  },
+  "variables": {
+    "networkName": "[concat(parameters('hostName'), '-vnet')]",
+    "nicName": "[concat(parameters('hostName'), '-nic')]",
+    "nsgName": "[concat(parameters('hostName'), '-nsg')]",
+    "natName": "[concat(parameters('hostName'), '-nat')]",
+    "ipName": "[concat(parameters('hostName'), '-outbound-ip')]"
+  },
+  "resources": [
+    {
+      "type": "Microsoft.Network/publicIPAddresses",
+      "apiVersion": "2024-05-01",
+      "name": "[variables('ipName')]",
+      "location": "[parameters('location')]",
+      "sku": { "name": "Standard" },
+      "properties": { "publicIPAllocationMethod": "Static" }
+    },
+    {
+      "type": "Microsoft.Network/natGateways",
+      "apiVersion": "2024-05-01",
+      "name": "[variables('natName')]",
+      "location": "[parameters('location')]",
+      "sku": { "name": "Standard" },
+      "dependsOn": ["[resourceId('Microsoft.Network/publicIPAddresses', variables('ipName'))]"],
+      "properties": {
+        "publicIpAddresses": [{ "id": "[resourceId('Microsoft.Network/publicIPAddresses', variables('ipName'))]" }]
+      }
+    },
+    {
+      "type": "Microsoft.Network/networkSecurityGroups",
+      "apiVersion": "2024-05-01",
+      "name": "[variables('nsgName')]",
+      "location": "[parameters('location')]",
+      "properties": { "securityRules": [] }
+    },
+    {
+      "type": "Microsoft.Network/virtualNetworks",
+      "apiVersion": "2024-05-01",
+      "name": "[variables('networkName')]",
+      "location": "[parameters('location')]",
+      "dependsOn": [
+        "[resourceId('Microsoft.Network/natGateways', variables('natName'))]",
+        "[resourceId('Microsoft.Network/networkSecurityGroups', variables('nsgName'))]"
+      ],
+      "properties": {
+        "addressSpace": { "addressPrefixes": ["10.240.0.0/16"] },
+        "subnets": [{
+          "name": "hosts",
+          "properties": {
+            "addressPrefix": "10.240.1.0/24",
+            "defaultOutboundAccess": false,
+            "natGateway": { "id": "[resourceId('Microsoft.Network/natGateways', variables('natName'))]" },
+            "networkSecurityGroup": { "id": "[resourceId('Microsoft.Network/networkSecurityGroups', variables('nsgName'))]" }
+          }
+        }]
+      }
+    },
+    {
+      "type": "Microsoft.Network/networkInterfaces",
+      "apiVersion": "2024-05-01",
+      "name": "[variables('nicName')]",
+      "location": "[parameters('location')]",
+      "dependsOn": ["[resourceId('Microsoft.Network/virtualNetworks', variables('networkName'))]"],
+      "properties": {
+        "ipConfigurations": [{
+          "name": "private",
+          "properties": {
+            "privateIPAllocationMethod": "Dynamic",
+            "subnet": { "id": "[resourceId('Microsoft.Network/virtualNetworks/subnets', variables('networkName'), 'hosts')]" }
+          }
+        }]
+      }
+    },
+    {
+      "type": "Microsoft.Compute/virtualMachines",
+      "apiVersion": "2024-07-01",
+      "name": "[parameters('hostName')]",
+      "location": "[parameters('location')]",
+      "dependsOn": ["[resourceId('Microsoft.Network/networkInterfaces', variables('nicName'))]"],
+      "properties": {
+        "hardwareProfile": { "vmSize": "[parameters('vmSize')]" },
+        "osProfile": {
+          "computerName": "[parameters('hostName')]",
+          "adminUsername": "[parameters('adminUsername')]",
+          "adminPassword": "[parameters('adminPassword')]",
+          "windowsConfiguration": { "provisionVMAgent": true, "enableAutomaticUpdates": true }
+        },
+        "storageProfile": {
+          "imageReference": {
+            "publisher": "MicrosoftWindowsServer",
+            "offer": "WindowsServer",
+            "sku": "2022-datacenter-g2",
+            "version": "latest"
+          },
+          "osDisk": { "createOption": "FromImage", "managedDisk": { "storageAccountType": "Premium_LRS" } },
+          "dataDisks": [{
+            "lun": 0,
+            "diskSizeGB": 512,
+            "createOption": "Empty",
+            "managedDisk": { "storageAccountType": "Premium_LRS" }
+          }]
+        },
+        "networkProfile": {
+          "networkInterfaces": [{ "id": "[resourceId('Microsoft.Network/networkInterfaces', variables('nicName'))]" }]
+        }
+      }
+    }
+  ]
+}
