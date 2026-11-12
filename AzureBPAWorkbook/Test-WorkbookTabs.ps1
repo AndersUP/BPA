@@ -39,7 +39,7 @@ foreach ($file in $historical) {
         }
     }
 }
-foreach ($target in @('Resources', 'BPADashboard', 'CustomMonitoring', 'StorageIO', 'MigrationAssessment', 'AzureAdvisor', 'AzureUpdates')) {
+foreach ($target in @('Resources', 'BPADashboard', 'CustomMonitoring', 'StorageIO', 'MigrationAssessment', 'AzureAdvisor', 'AzureUpdates', 'WindowsHealth')) {
     if ($target -notin $targets) { throw "Missing required tab: $target" }
 }
 $storage = @($latest.items | Where-Object { $_.ContainsKey('conditionalVisibility') -and $_.conditionalVisibility.value -eq 'StorageIO' })[0]
@@ -205,4 +205,61 @@ foreach ($entry in @(
     $heading = @($entry.Group.content.items | Where-Object { $_.name -eq $entry.Name })[0]
     if ($heading.content.json -cne $entry.Text) { throw "Header must contain only its title: $($entry.Name)" }
 }
-Write-Output "PASS: seven tabs; compact layouts and title-only headers; storage query fidelity; readiness defaults; Advisor and Updates scope, selection, and patch guards."
+function Get-WorkbookItems($items) {
+    foreach ($item in $items) {
+        $item
+        if ($item.type -eq 12) { Get-WorkbookItems $item.content.items }
+    }
+}
+$windows = @($latest.items | Where-Object { $_.name -eq 'group - Windows Health' })[0]
+$windowsItems = @(Get-WorkbookItems $windows.content.items)
+$windowsHeading = @($windowsItems | Where-Object { $_.name -eq 'text - windows-header' })[0]
+if ($windowsHeading.content.json -cne '# Windows Health') { throw 'Windows header must contain only its title.' }
+$windowsParameters = @($windowsItems | Where-Object { $_.type -eq 9 } | ForEach-Object { $_.content.parameters })
+foreach ($initial in @{ WinSection = 'machines'; WinDetailTab = 'updates'; WinSoftwareTab = 'defender'; WinMachineId = 'All' }.GetEnumerator()) {
+    $parameter = @($windowsParameters | Where-Object { $_.name -eq $initial.Key })
+    if ($parameter.Count -ne 1 -or $parameter[0].value -cne $initial.Value) {
+        throw "Windows parameter $($initial.Key) must be initialized to '$($initial.Value)' before queries execute."
+    }
+}
+$windowsGrid = @($windowsItems | Where-Object { $_.name -eq 'win-machines-grid' })[0].content
+$windowsSelection = @($windowsGrid.exportedParameters | Where-Object { $_.parameterName -eq 'WinMachineId' })
+if ($windowsSelection.Count -ne 1 -or $windowsSelection[0].fieldName -ne 'MachineId' -or $windowsSelection[0].defaultValue -ne 'All') {
+    throw 'Windows machine rows must export the full resource ID and default to All.'
+}
+$windowsReset = @($windowsItems | Where-Object { $_.name -eq 'win-detail-reset' })[0].content.links[0]
+if ($windowsReset.cellValue -ne 'WinMachineId' -or $windowsReset.subTarget -ne 'All') {
+    throw 'Windows tab must provide a reset to all machines.'
+}
+$windowsQueries = @($windowsItems | Where-Object { $_.type -eq 3 })
+foreach ($query in $windowsQueries) {
+    $kql = $query.content.query
+    if ($query.content.queryType -eq 1) {
+        if ($query.content.crossComponentResources[0] -ne '{Subscription}') {
+            throw "Windows query $($query.name) must use Resource Graph scoped to selected subscriptions."
+        }
+        if ($query.name -notlike 'win-detail-*' -and
+            (-not $kql.Contains("properties.osType =~ 'windows'") -or -not $kql.Contains("'*' in ({ResourceGroup})") -or
+             -not $kql.Contains('resourceGroup in~ ({ResourceGroup})'))) {
+            throw "Windows query $($query.name) must be limited to Windows Arc machines in the selected resource groups."
+        }
+        if ([regex]::Matches($kql, '\bpatchassessmentresources\b').Count -gt 1 -or
+            [regex]::Matches($kql, '\bjoin\b').Count -gt 3 -or [regex]::Matches($kql, 'mv-expand').Count -gt 3) {
+            throw "Windows query $($query.name) exceeds Resource Graph join/mv-expand limits or repeats the remote assessment table."
+        }
+    } elseif ($query.content.crossComponentResources[0] -ne '{WinWorkspace}') {
+        throw "Windows Log Analytics query $($query.name) must use the Change Tracking workspace selector."
+    }
+}
+foreach ($name in @('win-detail-updates-grid', 'win-upd-catalogue', 'win-upd-details')) {
+    $kql = @($windowsQueries | Where-Object { $_.name -eq $name })[0].content.query
+    foreach ($required in @('patchassessmentresources', 'PatchAssessmentId == AssessmentId', 'PatchUpdatedAt >= AssessmentStartedAt',
+        'PatchUpdatedAt <= AssessmentTime', "AssessmentStatus =~ 'Succeeded'", 'PatchDetailsTruncated', 'mv-expand PatchRow = PatchRows limit 2000',
+        '| where PatchValid')) {
+        if (-not $kql.Contains($required)) { throw "Windows patch query $name lacks $required" }
+    }
+}
+if (-not @($windowsQueries | Where-Object { $_.name -eq 'win-detail-updates-grid' })[0].content.query.Contains("MachineId == '{WinMachineId}'")) {
+    throw 'Windows machine patch details must be restricted to the selected machine.'
+}
+Write-Output "PASS: eight tabs; compact layouts and title-only headers; storage query fidelity; readiness defaults; Advisor and Updates scope, selection, and patch guards; Windows Health scope, selection, and patch guards."

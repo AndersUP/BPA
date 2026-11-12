@@ -19,6 +19,7 @@ The filename is retained as it exists in the repository.
 | Migration assessment | Readiness for Azure SQL Database, Azure SQL Managed Instance, and SQL Server on Azure VMs; server and database drill-downs, blockers, features requiring planning, and shared dependencies |
 | Azure Advisor | All Advisor categories for Arc SQL hosts and registered Azure SQL VMs; estate totals, category/impact/coverage pies, machine totals, and selectable recommendation details |
 | Azure Updates | Update Manager assessment coverage, missing patch/reboot totals, three pies, host summaries, affected-machine patch totals, and selectable missing-patch details |
+| Windows Health | All Windows Arc machines (not only SQL hosts): OS end-of-support, Update Manager assessment and missing patches, Machine Configuration and Azure Policy compliance, and installed software from Defender and Change Tracking, with per-machine drill-down |
 | Assessment coverage | SQL IaaS BPA assessment coverage in the BPA Enterprise Dashboard; migration views require actual uploaded assessment results |
 
 Use the subscription and resource-group selectors to scope inventory. Select
@@ -26,9 +27,9 @@ the appropriate Log Analytics workspace(s) and time range for performance data,
 and the assessment workspace for BPA results. Click a machine row in a
 performance summary to display its trend. BPA includes severity and tag filters.
 
-The primary workbook includes seven tabs, preserving all five from the four versions: **Azure Arc
+The primary workbook includes eight tabs, preserving all five from the four versions: **Azure Arc
 SQL Resources**, **BPA Enterprise Dashboard**, **Custom Monitoring**, **Storage &
-I/O Analysis**, **Migration Assessment**, **Azure Advisor**, and **Azure Updates**. Storage & I/O Analysis has its own
+I/O Analysis**, **Migration Assessment**, **Azure Advisor**, **Azure Updates**, and **Windows Health**. Storage & I/O Analysis has its own
 workspace and time selectors; select a machine in its I/O summary for the charts.
 Its performance panels require the corresponding `Perf` counters, and its Azure
 VM disk inventory does not enumerate VHDX disks inside nested Hyper-V guests.
@@ -61,6 +62,7 @@ enable assessments, or create data collection rules.
 | BPA findings | `SqlAssessment_CL`, including CSV assessment records in `RawData` and the originating machine's `_ResourceId` |
 | Azure Advisor | Resource Graph `advisorresources` joined by full resource IDs to SQL VM registrations, Arc SQL instance parents, or Arc machine SQL discovery; no Log Analytics workspace required |
 | Azure Updates | Resource Graph `patchassessmentresources`; Update Manager assessments must have run on the SQL hosts; no Log Analytics workspace required |
+| Windows Health | Resource Graph for Windows Arc machines (all, not only SQL hosts): `patchassessmentresources` (Update Manager assessments), `guestconfigurationresources` (Machine Configuration), `policyresources` and `securityresources` (Defender software inventory). Change Tracking software inventory and changes use a Log Analytics workspace (`ConfigurationData`, `ConfigurationChange`). Anything not enabled is shown as **Not enabled** or with a message naming what to enable |
 
 The Advisor tab counts each returned recommendation once per host, includes
 machines without returned recommendations, and retains all returned
