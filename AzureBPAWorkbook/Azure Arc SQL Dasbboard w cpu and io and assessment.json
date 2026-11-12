@@ -128,6 +128,14 @@
             "linkLabel": "Azure Updates",
             "subTarget": "AzureUpdates",
             "style": "link"
+          },
+          {
+            "id": "b812004d-dbcc-5a80-832c-bce5b034ae94",
+            "cellValue": "selMainTab",
+            "linkTarget": "parameter",
+            "linkLabel": "Windows Health",
+            "subTarget": "WindowsHealth",
+            "style": "link"
           }
         ]
       },
@@ -2433,7 +2441,7 @@
           {
             "type": 1,
             "content": {
-              "json": "# Migration Assessment\nMigration readiness, right-sized SKU recommendations, and monthly cost estimates from uploaded SQL Server migration assessments. Targets include **Azure SQL Managed Instance**, **Azure SQL Database**, and **SQL Server on Azure VM**.\n\n> The grids read Azure Resource Graph under `microsoft.azurearcdata/sqlserverinstances` (`properties.migration.assessment`). **Select a server row** for available cost, settings, SKU, and assessment-issue detail. Unified inventory and BPA runs do not establish migration readiness. Native Azure SQL VM Modernization Advisor results are not read by these grids; no documented public results feed has been verified for workbook integration. For non-Arc SQL instances, use [SSMS 22+ migration assessment](https://learn.microsoft.com/ssms/migrate/migrate-sql-server-azure-sql) to generate a readiness report comparing SQL Database, Managed Instance, and SQL VM targets. That report is not ingested by this workbook."
+              "json": "# Migration Assessment"
             },
             "name": "text - migration-header"
           },
@@ -4420,6 +4428,1193 @@
         "value": "AzureUpdates"
       },
       "name": "group - Azure Updates"
+    },
+    {
+      "type": 12,
+      "content": {
+        "version": "NotebookGroup/1.0",
+        "groupType": "editable",
+        "items": [
+          {
+            "type": 1,
+            "content": {
+              "json": "# Windows Health"
+            },
+            "name": "text - windows-header"
+          },
+          {
+            "type": 9,
+            "content": {
+              "version": "KqlParameterItem/1.0",
+              "parameters": [
+                {
+                  "id": "bd4037b3-28bf-5b72-8954-21ddbb512758",
+                  "version": "KqlParameterItem/1.0",
+                  "name": "WinSection",
+                  "type": 1,
+                  "isHiddenWhenLocked": true,
+                  "value": "machines"
+                },
+                {
+                  "id": "cfeee656-7428-5bca-a75b-93de348cbaa3",
+                  "version": "KqlParameterItem/1.0",
+                  "name": "WinDetailTab",
+                  "type": 1,
+                  "isHiddenWhenLocked": true,
+                  "value": "updates"
+                },
+                {
+                  "id": "b6006e2f-992f-5cc5-b225-1b2f36f42cb3",
+                  "version": "KqlParameterItem/1.0",
+                  "name": "WinSoftwareTab",
+                  "type": 1,
+                  "isHiddenWhenLocked": true,
+                  "value": "defender"
+                },
+                {
+                  "id": "cce191ba-c642-51ce-aa90-0c194b59b0a6",
+                  "version": "KqlParameterItem/1.0",
+                  "name": "WinMachineId",
+                  "type": 1,
+                  "isHiddenWhenLocked": true,
+                  "value": "All"
+                },
+                {
+                  "id": "e4e259d5-1d5e-571e-83b5-2914f8290a53",
+                  "version": "KqlParameterItem/1.0",
+                  "name": "WinMachineName",
+                  "type": 1,
+                  "isHiddenWhenLocked": true,
+                  "value": "All"
+                }
+              ],
+              "style": "pills"
+            },
+            "name": "win-state-params"
+          },
+          {
+            "type": 9,
+            "content": {
+              "version": "KqlParameterItem/1.0",
+              "crossComponentResources": [
+                "{Subscription}"
+              ],
+              "parameters": [
+                {
+                  "id": "64bbc6ac-1e49-5be1-8e53-8a4f07635bfc",
+                  "version": "KqlParameterItem/1.0",
+                  "name": "WinWorkspace",
+                  "label": "Log Analytics Workspace (Change Tracking)",
+                  "type": 2,
+                  "description": "Workspace(s) receiving Change Tracking and Inventory data (ConfigurationData / ConfigurationChange)",
+                  "isRequired": true,
+                  "multiSelect": true,
+                  "quote": "'",
+                  "delimiter": ",",
+                  "query": "resources\r\n| where type =~ 'microsoft.operationalinsights/workspaces'\r\n| project value = id, label = name, group = subscriptionId",
+                  "crossComponentResources": [
+                    "{Subscription}"
+                  ],
+                  "typeSettings": {
+                    "additionalResourceOptions": [
+                      "value::all"
+                    ],
+                    "showDefault": false
+                  },
+                  "defaultValue": "value::all",
+                  "queryType": 1,
+                  "resourceType": "microsoft.resourcegraph/resources"
+                },
+                {
+                  "id": "41c52299-2455-5d49-8d44-1baaab2d16c7",
+                  "version": "KqlParameterItem/1.0",
+                  "name": "WinSwTimeRange",
+                  "label": "Software inventory window",
+                  "type": 2,
+                  "isRequired": true,
+                  "typeSettings": {
+                    "additionalResourceOptions": []
+                  },
+                  "jsonData": "[{\"value\": \"1d\", \"label\": \"Last 24 hours\"}, {\"value\": \"7d\", \"label\": \"Last 7 days\"}, {\"value\": \"30d\", \"label\": \"Last 30 days\"}]",
+                  "value": "7d"
+                }
+              ],
+              "style": "pills",
+              "queryType": 1,
+              "resourceType": "microsoft.resourcegraph/resources"
+            },
+            "name": "win-filter-params"
+          },
+          {
+            "type": 11,
+            "content": {
+              "version": "LinkItem/1.0",
+              "style": "tabs",
+              "links": [
+                {
+                  "id": "a6f304df-80e8-5b4e-8533-72a28ede259b",
+                  "cellValue": "WinSection",
+                  "linkTarget": "parameter",
+                  "linkLabel": "Machines",
+                  "subTarget": "machines",
+                  "style": "link"
+                },
+                {
+                  "id": "fed62ca0-1e40-50bc-befc-f59db4105d3d",
+                  "cellValue": "WinSection",
+                  "linkTarget": "parameter",
+                  "linkLabel": "Baselines & compliance",
+                  "subTarget": "baseline",
+                  "style": "link"
+                },
+                {
+                  "id": "72b96474-2b7f-596c-b5a2-5e5dff330a03",
+                  "cellValue": "WinSection",
+                  "linkTarget": "parameter",
+                  "linkLabel": "Installed software",
+                  "subTarget": "software",
+                  "style": "link"
+                }
+              ]
+            },
+            "name": "win-section-tabs"
+          },
+          {
+            "type": 12,
+            "content": {
+              "version": "NotebookGroup/1.0",
+              "groupType": "editable",
+              "items": [
+                {
+                  "type": 3,
+                  "content": {
+                    "version": "KqlItem/1.0",
+                    "query": "resources\n| where type in~ ('microsoft.hybridcompute/machines', 'microsoft.compute/virtualmachines')\n| where properties.osType =~ 'windows' or properties.storageProfile.osDisk.osType =~ 'windows'\n| extend MachineId = tolower(id)\n| join kind=inner (\nresources\n| where type in~ ('microsoft.sqlvirtualmachine/sqlvirtualmachines', 'microsoft.azurearcdata/sqlserverinstances', 'microsoft.hybridcompute/machines')\n| where type !~ 'microsoft.hybridcompute/machines' or tostring(properties.detectedProperties.mssqldiscovered) =~ 'true'\n| extend MachineId = tolower(case(\n    type =~ 'microsoft.sqlvirtualmachine/sqlvirtualmachines', tostring(properties.virtualMachineResourceId),\n    type =~ 'microsoft.azurearcdata/sqlserverinstances', tostring(properties.containerResourceId), id))\n| where MachineId matches regex '^/subscriptions/[^/]+/resourcegroups/[^/]+/providers/microsoft[.](compute/virtualmachines|hybridcompute/machines)/[^/]+$'\n| extend Machine = tostring(split(MachineId, '/')[8]), MachineResourceGroup = tostring(split(MachineId, '/')[4]),\n    HostType = iff(MachineId contains '/microsoft.hybridcompute/machines/', 'Arc SQL host', 'Azure SQL VM')\n| where ('*' in ({ResourceGroup}) or MachineResourceGroup in~ ({ResourceGroup}))\n| summarize by MachineId, Machine, MachineResourceGroup, HostType\n| project MachineId, HostType\n) on MachineId\n| project-away MachineId1\n| extend MachineId = tolower(id), Machine = name, ArcStatus = iff(type =~ 'microsoft.hybridcompute/machines', tostring(properties.status), 'Not applicable (Azure VM)'), OSVersion = coalesce(tostring(properties.osVersion), tostring(properties.extended.instanceView.osVersion)),\n    AssessmentMode = tostring(properties.osProfile.windowsConfiguration.patchSettings.assessmentMode)\n| extend OsMatch = extract(@'(Windows Server (?:2003|2008|2012|2016|2019|2022|2025)(?: R2)?|Windows (?:XP|Vista|7|8\\.1|10|11)|Azure Stack HCI|Azure Local)', 1, strcat(tostring(properties.osSku), ' ', tostring(properties.osName), ' ', tostring(properties.extended.instanceView.osName), ' ', iff(tostring(properties.storageProfile.imageReference.publisher) =~ 'MicrosoftSQLServer', strcat('Windows Server ', extract(@'ws(2003|2008|2012|2016|2019|2022|2025)', 1, tostring(properties.storageProfile.imageReference.offer))), ''), ' ', iff(tostring(properties.storageProfile.imageReference.offer) =~ 'WindowsServer', strcat('Windows Server ', extract(@'^(2003|2008|2012|2016|2019|2022|2025)', 1, tostring(properties.storageProfile.imageReference.sku))), '')))\n| extend OS = iff(isnotempty(OsMatch), OsMatch, iff(isnotempty(tostring(properties.osSku)), tostring(properties.osSku), 'Unknown'))\n| extend EndOfSupportDate = case(\n    OS startswith 'Windows Server 2025', datetime(2034-10-10),\n    OS startswith 'Windows Server 2022', datetime(2031-10-14),\n    OS startswith 'Windows Server 2019', datetime(2029-01-09),\n    OS startswith 'Windows Server 2016', datetime(2027-01-12),\n    OS startswith 'Windows Server 2012', datetime(2023-10-10),\n    OS startswith 'Windows Server 2008', datetime(2020-01-14),\n    OS startswith 'Windows Server 2003', datetime(2015-07-14),\n    OS == 'Windows 10', datetime(2025-10-14),\n    OS == 'Windows 8.1', datetime(2023-01-10),\n    OS == 'Windows 7', datetime(2020-01-14),\n    OS == 'Windows Vista', datetime(2017-04-11),\n    OS == 'Windows XP', datetime(2014-04-08),\n    datetime(null))\n| extend SupportStatus = case(\n    OS in ('Azure Stack HCI', 'Azure Local'), 'Supported',\n    isnull(EndOfSupportDate), 'Not evaluated',\n    EndOfSupportDate < now(), 'Out of support',\n    EndOfSupportDate < now() + 365d, 'Ends within 12 months',\n    'Supported')\n| join kind=leftouter (\n    patchassessmentresources\n    | where type in~ ('microsoft.hybridcompute/machines/patchassessmentresults', 'microsoft.compute/virtualmachines/patchassessmentresults')\n    | extend MachineId = tostring(split(tolower(id), '/patchassessmentresults/')[0]),\n        AssessmentTime = todatetime(properties.lastModifiedDateTime), AssessmentStatus = tostring(properties.status),\n        RebootPending = tobool(properties.rebootPending), Counts = properties.availablePatchCountByClassification\n    | summarize arg_max(coalesce(AssessmentTime, datetime(1900-01-01)), *) by MachineId\n    | project MachineId, AssessmentTime, AssessmentStatus, RebootPending,\n        Critical = toint(Counts.critical), Security = toint(Counts.security),\n        Other = toint(Counts.updateRollup) + toint(Counts.featurePack) + toint(Counts.servicePack) + toint(Counts.definition) + toint(Counts.tools) + toint(Counts.updates)\n) on MachineId\n| project-away MachineId1\n| extend Assessment = case(\n    isempty(AssessmentStatus), iff(AssessmentMode =~ 'AutomaticByPlatform', 'Awaiting first assessment', 'Not enabled'),\n    AssessmentStatus !~ 'Succeeded', 'Assessment not successful',\n    isnull(AssessmentTime), 'Assessment time unknown',\n    AssessmentTime < ago(24h), 'Stale (over 24 hours)',\n    'Fresh (within 24 hours)')\n| extend Patches = case(\n    AssessmentStatus !~ 'Succeeded', '-',\n    coalesce(Critical, 0) + coalesce(Security, 0) > 0, 'Critical/security missing',\n    coalesce(Other, 0) > 0, 'Other updates missing',\n    'No missing updates returned')\n| summarize Total = count(), Disconnected = countif(HostType == 'Arc SQL host' and ArcStatus !~ 'connected'), OutOfSupport = countif(SupportStatus == 'Out of support'),\n    NoAssessment = countif(Assessment in ('Not enabled', 'Awaiting first assessment')),\n    CritSec = countif(Patches == 'Critical/security missing'), Reboot = countif(RebootPending == true)\n| extend r = pack_array(\n    pack_array('Windows SQL hosts', Total),\n    pack_array('Disconnected', Disconnected),\n    pack_array('Out of support OS', OutOfSupport),\n    pack_array('No update assessment', NoAssessment),\n    pack_array('Critical/security updates missing', CritSec),\n    pack_array('Reboot pending', Reboot))\n| mv-expand r\n| project Metric = tostring(r[0]), Count = tolong(r[1])",
+                    "size": 0,
+                    "title": "Windows estate overview",
+                    "queryType": 1,
+                    "resourceType": "microsoft.resourcegraph/resources",
+                    "crossComponentResources": [
+                      "{Subscription}"
+                    ],
+                    "visualization": "tiles",
+                    "showExportToExcel": true,
+                    "noDataMessage": "No Windows Arc machines found.",
+                    "tileSettings": {
+                      "showBorder": true,
+                      "titleContent": {
+                        "columnMatch": "Metric",
+                        "formatter": 1
+                      },
+                      "leftContent": {
+                        "columnMatch": "Count",
+                        "formatter": 12,
+                        "formatOptions": {
+                          "palette": "auto"
+                        },
+                        "numberFormat": {
+                          "unit": 17,
+                          "options": {
+                            "maximumSignificantDigits": 3,
+                            "maximumFractionDigits": 2
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "name": "win-tiles"
+                },
+                {
+                  "type": 3,
+                  "content": {
+                    "version": "KqlItem/1.0",
+                    "query": "resources\n| where type in~ ('microsoft.hybridcompute/machines', 'microsoft.compute/virtualmachines')\n| where properties.osType =~ 'windows' or properties.storageProfile.osDisk.osType =~ 'windows'\n| extend MachineId = tolower(id)\n| join kind=inner (\nresources\n| where type in~ ('microsoft.sqlvirtualmachine/sqlvirtualmachines', 'microsoft.azurearcdata/sqlserverinstances', 'microsoft.hybridcompute/machines')\n| where type !~ 'microsoft.hybridcompute/machines' or tostring(properties.detectedProperties.mssqldiscovered) =~ 'true'\n| extend MachineId = tolower(case(\n    type =~ 'microsoft.sqlvirtualmachine/sqlvirtualmachines', tostring(properties.virtualMachineResourceId),\n    type =~ 'microsoft.azurearcdata/sqlserverinstances', tostring(properties.containerResourceId), id))\n| where MachineId matches regex '^/subscriptions/[^/]+/resourcegroups/[^/]+/providers/microsoft[.](compute/virtualmachines|hybridcompute/machines)/[^/]+$'\n| extend Machine = tostring(split(MachineId, '/')[8]), MachineResourceGroup = tostring(split(MachineId, '/')[4]),\n    HostType = iff(MachineId contains '/microsoft.hybridcompute/machines/', 'Arc SQL host', 'Azure SQL VM')\n| where ('*' in ({ResourceGroup}) or MachineResourceGroup in~ ({ResourceGroup}))\n| summarize by MachineId, Machine, MachineResourceGroup, HostType\n| project MachineId, HostType\n) on MachineId\n| project-away MachineId1\n| extend MachineId = tolower(id), Machine = name, ArcStatus = iff(type =~ 'microsoft.hybridcompute/machines', tostring(properties.status), 'Not applicable (Azure VM)'), OSVersion = coalesce(tostring(properties.osVersion), tostring(properties.extended.instanceView.osVersion)),\n    AssessmentMode = tostring(properties.osProfile.windowsConfiguration.patchSettings.assessmentMode)\n| extend OsMatch = extract(@'(Windows Server (?:2003|2008|2012|2016|2019|2022|2025)(?: R2)?|Windows (?:XP|Vista|7|8\\.1|10|11)|Azure Stack HCI|Azure Local)', 1, strcat(tostring(properties.osSku), ' ', tostring(properties.osName), ' ', tostring(properties.extended.instanceView.osName), ' ', iff(tostring(properties.storageProfile.imageReference.publisher) =~ 'MicrosoftSQLServer', strcat('Windows Server ', extract(@'ws(2003|2008|2012|2016|2019|2022|2025)', 1, tostring(properties.storageProfile.imageReference.offer))), ''), ' ', iff(tostring(properties.storageProfile.imageReference.offer) =~ 'WindowsServer', strcat('Windows Server ', extract(@'^(2003|2008|2012|2016|2019|2022|2025)', 1, tostring(properties.storageProfile.imageReference.sku))), '')))\n| extend OS = iff(isnotempty(OsMatch), OsMatch, iff(isnotempty(tostring(properties.osSku)), tostring(properties.osSku), 'Unknown'))\n| extend EndOfSupportDate = case(\n    OS startswith 'Windows Server 2025', datetime(2034-10-10),\n    OS startswith 'Windows Server 2022', datetime(2031-10-14),\n    OS startswith 'Windows Server 2019', datetime(2029-01-09),\n    OS startswith 'Windows Server 2016', datetime(2027-01-12),\n    OS startswith 'Windows Server 2012', datetime(2023-10-10),\n    OS startswith 'Windows Server 2008', datetime(2020-01-14),\n    OS startswith 'Windows Server 2003', datetime(2015-07-14),\n    OS == 'Windows 10', datetime(2025-10-14),\n    OS == 'Windows 8.1', datetime(2023-01-10),\n    OS == 'Windows 7', datetime(2020-01-14),\n    OS == 'Windows Vista', datetime(2017-04-11),\n    OS == 'Windows XP', datetime(2014-04-08),\n    datetime(null))\n| extend SupportStatus = case(\n    OS in ('Azure Stack HCI', 'Azure Local'), 'Supported',\n    isnull(EndOfSupportDate), 'Not evaluated',\n    EndOfSupportDate < now(), 'Out of support',\n    EndOfSupportDate < now() + 365d, 'Ends within 12 months',\n    'Supported')\n| join kind=leftouter (\n    patchassessmentresources\n    | where type in~ ('microsoft.hybridcompute/machines/patchassessmentresults', 'microsoft.compute/virtualmachines/patchassessmentresults')\n    | extend MachineId = tostring(split(tolower(id), '/patchassessmentresults/')[0]),\n        AssessmentTime = todatetime(properties.lastModifiedDateTime), AssessmentStatus = tostring(properties.status),\n        RebootPending = tobool(properties.rebootPending), Counts = properties.availablePatchCountByClassification\n    | summarize arg_max(coalesce(AssessmentTime, datetime(1900-01-01)), *) by MachineId\n    | project MachineId, AssessmentTime, AssessmentStatus, RebootPending,\n        Critical = toint(Counts.critical), Security = toint(Counts.security),\n        Other = toint(Counts.updateRollup) + toint(Counts.featurePack) + toint(Counts.servicePack) + toint(Counts.definition) + toint(Counts.tools) + toint(Counts.updates)\n) on MachineId\n| project-away MachineId1\n| extend Assessment = case(\n    isempty(AssessmentStatus), iff(AssessmentMode =~ 'AutomaticByPlatform', 'Awaiting first assessment', 'Not enabled'),\n    AssessmentStatus !~ 'Succeeded', 'Assessment not successful',\n    isnull(AssessmentTime), 'Assessment time unknown',\n    AssessmentTime < ago(24h), 'Stale (over 24 hours)',\n    'Fresh (within 24 hours)')\n| extend Patches = case(\n    AssessmentStatus !~ 'Succeeded', '-',\n    coalesce(Critical, 0) + coalesce(Security, 0) > 0, 'Critical/security missing',\n    coalesce(Other, 0) > 0, 'Other updates missing',\n    'No missing updates returned')\n| project MachineId, Machine, HostType, OS, OSVersion, ArcStatus, SupportStatus, EndOfSupport = format_datetime(EndOfSupportDate, 'yyyy-MM-dd'),\n    Assessment, Patches, Critical, Security, Other, RebootPending = iff(RebootPending == true, 'Yes', iff(isnull(RebootPending), '-', 'No')),\n    AssessmentTime, ResourceGroup = resourceGroup, Subscription = subscriptionId\n| order by Machine asc",
+                    "size": 3,
+                    "title": "Windows machines: select a row for details",
+                    "queryType": 1,
+                    "resourceType": "microsoft.resourcegraph/resources",
+                    "crossComponentResources": [
+                      "{Subscription}"
+                    ],
+                    "visualization": "table",
+                    "showExportToExcel": true,
+                    "noDataMessage": "No Windows Arc machines found.",
+                    "exportedParameters": [
+                      {
+                        "fieldName": "MachineId",
+                        "parameterName": "WinMachineId",
+                        "parameterType": 1,
+                        "defaultValue": "All"
+                      },
+                      {
+                        "fieldName": "Machine",
+                        "parameterName": "WinMachineName",
+                        "parameterType": 1,
+                        "defaultValue": "All"
+                      }
+                    ],
+                    "gridSettings": {
+                      "formatters": [
+                        {
+                          "columnMatch": "MachineId",
+                          "formatter": 5
+                        },
+                        {
+                          "columnMatch": "ArcStatus",
+                          "formatter": 18,
+                          "formatOptions": {
+                            "thresholdsOptions": "icons",
+                            "thresholdsGrid": [
+                              {
+                                "operator": "==",
+                                "thresholdValue": "Connected",
+                                "representation": "success",
+                                "text": "{0}{1}"
+                              },
+                              {
+                                "operator": "==",
+                                "thresholdValue": "Disconnected",
+                                "representation": "4",
+                                "text": "{0}{1}"
+                              },
+                              {
+                                "operator": "==",
+                                "thresholdValue": "Expired",
+                                "representation": "4",
+                                "text": "{0}{1}"
+                              },
+                              {
+                                "operator": "Default",
+                                "thresholdValue": null,
+                                "representation": "unknown",
+                                "text": "{0}{1}"
+                              }
+                            ]
+                          }
+                        },
+                        {
+                          "columnMatch": "SupportStatus",
+                          "formatter": 18,
+                          "formatOptions": {
+                            "thresholdsOptions": "icons",
+                            "thresholdsGrid": [
+                              {
+                                "operator": "==",
+                                "thresholdValue": "Supported",
+                                "representation": "success",
+                                "text": "{0}{1}"
+                              },
+                              {
+                                "operator": "==",
+                                "thresholdValue": "Ends within 12 months",
+                                "representation": "2",
+                                "text": "{0}{1}"
+                              },
+                              {
+                                "operator": "==",
+                                "thresholdValue": "Out of support",
+                                "representation": "4",
+                                "text": "{0}{1}"
+                              },
+                              {
+                                "operator": "Default",
+                                "thresholdValue": null,
+                                "representation": "unknown",
+                                "text": "{0}{1}"
+                              }
+                            ]
+                          }
+                        },
+                        {
+                          "columnMatch": "Assessment",
+                          "formatter": 18,
+                          "formatOptions": {
+                            "thresholdsOptions": "icons",
+                            "thresholdsGrid": [
+                              {
+                                "operator": "==",
+                                "thresholdValue": "Fresh (within 24 hours)",
+                                "representation": "success",
+                                "text": "{0}{1}"
+                              },
+                              {
+                                "operator": "==",
+                                "thresholdValue": "Stale (over 24 hours)",
+                                "representation": "2",
+                                "text": "{0}{1}"
+                              },
+                              {
+                                "operator": "==",
+                                "thresholdValue": "Awaiting first assessment",
+                                "representation": "2",
+                                "text": "{0}{1}"
+                              },
+                              {
+                                "operator": "==",
+                                "thresholdValue": "Not enabled",
+                                "representation": "2",
+                                "text": "{0}{1}"
+                              },
+                              {
+                                "operator": "==",
+                                "thresholdValue": "Assessment not successful",
+                                "representation": "4",
+                                "text": "{0}{1}"
+                              },
+                              {
+                                "operator": "==",
+                                "thresholdValue": "Assessment time unknown",
+                                "representation": "2",
+                                "text": "{0}{1}"
+                              },
+                              {
+                                "operator": "Default",
+                                "thresholdValue": null,
+                                "representation": "unknown",
+                                "text": "{0}{1}"
+                              }
+                            ]
+                          }
+                        },
+                        {
+                          "columnMatch": "Patches",
+                          "formatter": 18,
+                          "formatOptions": {
+                            "thresholdsOptions": "icons",
+                            "thresholdsGrid": [
+                              {
+                                "operator": "==",
+                                "thresholdValue": "No missing updates returned",
+                                "representation": "success",
+                                "text": "{0}{1}"
+                              },
+                              {
+                                "operator": "==",
+                                "thresholdValue": "Other updates missing",
+                                "representation": "2",
+                                "text": "{0}{1}"
+                              },
+                              {
+                                "operator": "==",
+                                "thresholdValue": "Critical/security missing",
+                                "representation": "4",
+                                "text": "{0}{1}"
+                              },
+                              {
+                                "operator": "Default",
+                                "thresholdValue": null,
+                                "representation": "unknown",
+                                "text": "{0}{1}"
+                              }
+                            ]
+                          }
+                        },
+                        {
+                          "columnMatch": "Critical",
+                          "formatter": 8,
+                          "formatOptions": {
+                            "min": 0,
+                            "max": 10,
+                            "palette": "greenRed"
+                          }
+                        },
+                        {
+                          "columnMatch": "Security",
+                          "formatter": 8,
+                          "formatOptions": {
+                            "min": 0,
+                            "max": 10,
+                            "palette": "greenRed"
+                          }
+                        },
+                        {
+                          "columnMatch": "Other",
+                          "formatter": 8,
+                          "formatOptions": {
+                            "min": 0,
+                            "max": 30,
+                            "palette": "greenRed"
+                          }
+                        }
+                      ],
+                      "filter": true
+                    }
+                  },
+                  "name": "win-machines-grid"
+                },
+                {
+                  "type": 12,
+                  "content": {
+                    "version": "NotebookGroup/1.0",
+                    "groupType": "editable",
+                    "items": [
+                      {
+                        "type": 1,
+                        "content": {
+                          "json": "## {WinMachineName}"
+                        },
+                        "name": "win-detail-header"
+                      },
+                      {
+                        "type": 11,
+                        "content": {
+                          "version": "LinkItem/1.0",
+                          "style": "links",
+                          "links": [
+                            {
+                              "id": "7fbcce28-2d5d-5b89-84d6-8eb20e98221e",
+                              "cellValue": "WinMachineId",
+                              "linkTarget": "parameter",
+                              "linkLabel": "Clear machine selection",
+                              "subTarget": "All",
+                              "style": "link"
+                            }
+                          ]
+                        },
+                        "name": "win-detail-reset"
+                      },
+                      {
+                        "type": 11,
+                        "content": {
+                          "version": "LinkItem/1.0",
+                          "style": "tabs",
+                          "links": [
+                            {
+                              "id": "34f8e231-0c47-5562-88e4-d0425d61666f",
+                              "cellValue": "WinDetailTab",
+                              "linkTarget": "parameter",
+                              "linkLabel": "Missing updates",
+                              "subTarget": "updates",
+                              "style": "link"
+                            },
+                            {
+                              "id": "38300ba0-0f45-5a37-89c7-380084e5b7b1",
+                              "cellValue": "WinDetailTab",
+                              "linkTarget": "parameter",
+                              "linkLabel": "Baseline & compliance",
+                              "subTarget": "baseline",
+                              "style": "link"
+                            },
+                            {
+                              "id": "e7c114cb-7e95-5b65-9ce4-5e1b5433a90a",
+                              "cellValue": "WinDetailTab",
+                              "linkTarget": "parameter",
+                              "linkLabel": "Installed software",
+                              "subTarget": "software",
+                              "style": "link"
+                            }
+                          ]
+                        },
+                        "name": "win-detail-tabs"
+                      },
+                      {
+                        "type": 12,
+                        "content": {
+                          "version": "NotebookGroup/1.0",
+                          "groupType": "editable",
+                          "items": [
+                            {
+                              "type": 3,
+                              "content": {
+                                "version": "KqlItem/1.0",
+                                "query": "resources\n| where type in~ ('microsoft.hybridcompute/machines', 'microsoft.compute/virtualmachines')\n| where properties.osType =~ 'windows' or properties.storageProfile.osDisk.osType =~ 'windows'\n| extend MachineId = tolower(id)\n| join kind=inner (\nresources\n| where type in~ ('microsoft.sqlvirtualmachine/sqlvirtualmachines', 'microsoft.azurearcdata/sqlserverinstances', 'microsoft.hybridcompute/machines')\n| where type !~ 'microsoft.hybridcompute/machines' or tostring(properties.detectedProperties.mssqldiscovered) =~ 'true'\n| extend MachineId = tolower(case(\n    type =~ 'microsoft.sqlvirtualmachine/sqlvirtualmachines', tostring(properties.virtualMachineResourceId),\n    type =~ 'microsoft.azurearcdata/sqlserverinstances', tostring(properties.containerResourceId), id))\n| where MachineId matches regex '^/subscriptions/[^/]+/resourcegroups/[^/]+/providers/microsoft[.](compute/virtualmachines|hybridcompute/machines)/[^/]+$'\n| extend Machine = tostring(split(MachineId, '/')[8]), MachineResourceGroup = tostring(split(MachineId, '/')[4]),\n    HostType = iff(MachineId contains '/microsoft.hybridcompute/machines/', 'Arc SQL host', 'Azure SQL VM')\n| where ('*' in ({ResourceGroup}) or MachineResourceGroup in~ ({ResourceGroup}))\n| summarize by MachineId, Machine, MachineResourceGroup, HostType\n| project MachineId, HostType\n) on MachineId\n| project-away MachineId1\n| extend MachineId = tolower(id), Machine = name, MachineResourceGroup = resourceGroup\n| where MachineId == '{WinMachineId}'\n| summarize by MachineId, Machine, MachineResourceGroup\n| join kind=leftouter (\n    patchassessmentresources\n    | where type in~ ('microsoft.hybridcompute/machines/patchassessmentresults', 'microsoft.compute/virtualmachines/patchassessmentresults', 'microsoft.hybridcompute/machines/patchassessmentresults/softwarepatches', 'microsoft.compute/virtualmachines/patchassessmentresults/softwarepatches')\n    | extend MachineId = tostring(split(tolower(id), '/patchassessmentresults/')[0]),\n        IsSummary = type endswith '/patchassessmentresults'\n    | summarize AssessmentRows = make_list_if(pack('Id', tolower(id), 'Properties', properties), IsSummary, 1048576),\n        PatchRows = make_list_if(pack('Id', tolower(id), 'Properties', properties), not(IsSummary), 1048576),\n        PatchRecordCount = countif(not(IsSummary)) by MachineId\n) on MachineId\n| extend PatchDetailsTruncated = coalesce(PatchRecordCount, 0) > coalesce(array_length(PatchRows), 0) or array_length(PatchRows) > 2000\n| extend AssessmentRows = iff(coalesce(array_length(AssessmentRows), 0) > 0, AssessmentRows, dynamic([null]))\n| mv-expand AssessmentRow = AssessmentRows limit 2000\n| extend AssessmentId = tostring(AssessmentRow.Id), AssessmentTime = todatetime(AssessmentRow.Properties.lastModifiedDateTime),\n    AssessmentStartedAt = todatetime(AssessmentRow.Properties.startDateTime), AssessmentStatus = tostring(AssessmentRow.Properties.status)\n| summarize arg_max(coalesce(AssessmentTime, datetime(1900-01-01)), *) by MachineId\n| extend AssessmentCoverage = case(isempty(AssessmentId), 'No assessment returned',\n    AssessmentStatus !~ 'Succeeded', 'Assessment not successful',\n    isnull(AssessmentTime), 'Assessment time unknown',\n    AssessmentTime < ago(24h), 'Stale (over 24 hours)', 'Fresh (within 24 hours)')\n| extend PatchRows = iff(coalesce(array_length(PatchRows), 0) > 0, PatchRows, dynamic([null]))\n| mv-expand PatchRow = PatchRows limit 2000\n| extend PatchResourceId = tostring(PatchRow.Id),\n    PatchAssessmentId = tostring(split(tostring(PatchRow.Id), '/softwarepatches/')[0]),\n    PatchUpdatedAt = todatetime(PatchRow.Properties.lastModifiedDateTime),\n    PatchName = tostring(PatchRow.Properties.patchName), KbId = tostring(PatchRow.Properties.kbId),\n    Version = tostring(PatchRow.Properties.version), Classifications = PatchRow.Properties.classifications,\n    Severity = tostring(PatchRow.Properties.msrcSeverity), RebootBehavior = tostring(PatchRow.Properties.rebootBehavior)\n| extend PrimaryClassification = case(Classifications has 'Critical', 'Critical',\n    Classifications has 'Security', 'Security',\n    isnotempty(tostring(Classifications[0])), tostring(Classifications[0]), 'Unclassified')\n| extend PatchValid = isnotempty(PatchResourceId) and AssessmentStatus =~ 'Succeeded'\n    and PatchAssessmentId == AssessmentId\n    and isnotnull(AssessmentStartedAt) and isnotnull(AssessmentTime) and isnotnull(PatchUpdatedAt)\n    and PatchUpdatedAt >= AssessmentStartedAt and PatchUpdatedAt <= AssessmentTime\n| where PatchValid\n| project Machine, AssessmentCoverage, AssessmentTime, PatchName, KbId, Version, PrimaryClassification,\n    Classifications, Severity, RebootBehavior, PatchUpdatedAt, PatchResourceId\n| order by PrimaryClassification asc, PatchName asc",
+                                "size": 3,
+                                "title": "Missing patches for the selected machine",
+                                "queryType": 1,
+                                "resourceType": "microsoft.resourcegraph/resources",
+                                "crossComponentResources": [
+                                  "{Subscription}"
+                                ],
+                                "visualization": "table",
+                                "showExportToExcel": true,
+                                "noDataMessage": "No matching assessment/patch data returned. Enable Azure Update Manager periodic assessment on the Windows SQL hosts and check scope and read permissions. No returned patches does not establish that a machine is fully patched.",
+                                "gridSettings": {
+                                  "formatters": [],
+                                  "filter": true
+                                }
+                              },
+                              "name": "win-detail-updates-grid"
+                            }
+                          ]
+                        },
+                        "name": "win-detail-updates",
+                        "conditionalVisibility": {
+                          "parameterName": "WinDetailTab",
+                          "comparison": "isEqualTo",
+                          "value": "updates"
+                        }
+                      },
+                      {
+                        "type": 12,
+                        "content": {
+                          "version": "NotebookGroup/1.0",
+                          "groupType": "editable",
+                          "items": [
+                            {
+                              "type": 3,
+                              "content": {
+                                "version": "KqlItem/1.0",
+                                "query": "guestconfigurationresources\n| where type =~ 'microsoft.guestconfiguration/guestconfigurationassignments'\n| where tolower(id) startswith strcat('{WinMachineId}', '/providers/microsoft.guestconfiguration')\n| project Assignment = name, Compliance = tostring(properties.complianceStatus), LastChecked = todatetime(properties.lastComplianceStatusChecked),\n    Configuration = tostring(properties.guestConfiguration.name), Version = tostring(properties.guestConfiguration.version)\n| order by Compliance asc, Assignment asc",
+                                "size": 3,
+                                "title": "Machine Configuration assignments",
+                                "queryType": 1,
+                                "resourceType": "microsoft.resourcegraph/resources",
+                                "crossComponentResources": [
+                                  "{Subscription}"
+                                ],
+                                "visualization": "table",
+                                "showExportToExcel": true,
+                                "noDataMessage": "No Machine Configuration assignments found. Assign a Windows baseline (for example the Azure compute security baseline for Windows machines) to see compliance here.",
+                                "gridSettings": {
+                                  "formatters": [
+                                    {
+                                      "columnMatch": "Compliance",
+                                      "formatter": 18,
+                                      "formatOptions": {
+                                        "thresholdsOptions": "icons",
+                                        "thresholdsGrid": [
+                                          {
+                                            "operator": "==",
+                                            "thresholdValue": "Compliant",
+                                            "representation": "success",
+                                            "text": "{0}{1}"
+                                          },
+                                          {
+                                            "operator": "==",
+                                            "thresholdValue": "NonCompliant",
+                                            "representation": "4",
+                                            "text": "{0}{1}"
+                                          },
+                                          {
+                                            "operator": "==",
+                                            "thresholdValue": "Pending",
+                                            "representation": "2",
+                                            "text": "{0}{1}"
+                                          },
+                                          {
+                                            "operator": "Default",
+                                            "thresholdValue": null,
+                                            "representation": "unknown",
+                                            "text": "{0}{1}"
+                                          }
+                                        ]
+                                      }
+                                    }
+                                  ],
+                                  "filter": true
+                                }
+                              },
+                              "name": "win-detail-mc"
+                            },
+                            {
+                              "type": 3,
+                              "content": {
+                                "version": "KqlItem/1.0",
+                                "query": "guestconfigurationresources\n| where type =~ 'microsoft.guestconfiguration/guestconfigurationassignments'\n| where tolower(id) startswith strcat('{WinMachineId}', '/providers/microsoft.guestconfiguration')\n| mv-expand res = properties.latestAssignmentReport.resources\n| where tostring(res.complianceStatus) in~ ('false', 'noncompliant')\n| mv-expand reason = res.reasons\n| project Assignment = name, Setting = tostring(res.resourceId), Reason = tostring(reason.phrase)\n| order by Assignment asc, Setting asc",
+                                "size": 3,
+                                "title": "Non-compliant settings",
+                                "queryType": 1,
+                                "resourceType": "microsoft.resourcegraph/resources",
+                                "crossComponentResources": [
+                                  "{Subscription}"
+                                ],
+                                "visualization": "table",
+                                "showExportToExcel": true,
+                                "noDataMessage": "No non-compliant settings reported.",
+                                "gridSettings": {
+                                  "formatters": [],
+                                  "filter": true
+                                }
+                              },
+                              "name": "win-detail-mc-settings"
+                            },
+                            {
+                              "type": 3,
+                              "content": {
+                                "version": "KqlItem/1.0",
+                                "query": "policyresources\n| where type =~ 'microsoft.policyinsights/policystates'\n| where tolower(tostring(properties.resourceId)) == '{WinMachineId}'\n| where tostring(properties.complianceState) =~ 'noncompliant'\n| project PolicyAssignment = tostring(properties.policyAssignmentName), PolicyDefinition = tostring(properties.policyDefinitionName),\n    Reference = tostring(properties.policyDefinitionReferenceId), LastEvaluated = todatetime(properties.timestamp)\n| order by PolicyAssignment asc",
+                                "size": 3,
+                                "title": "Non-compliant Azure Policy states",
+                                "queryType": 1,
+                                "resourceType": "microsoft.resourcegraph/resources",
+                                "crossComponentResources": [
+                                  "{Subscription}"
+                                ],
+                                "visualization": "table",
+                                "showExportToExcel": true,
+                                "noDataMessage": "No non-compliant Azure Policy states for this machine.",
+                                "gridSettings": {
+                                  "formatters": [],
+                                  "filter": true
+                                }
+                              },
+                              "name": "win-detail-policy"
+                            }
+                          ]
+                        },
+                        "name": "win-detail-baseline",
+                        "conditionalVisibility": {
+                          "parameterName": "WinDetailTab",
+                          "comparison": "isEqualTo",
+                          "value": "baseline"
+                        }
+                      },
+                      {
+                        "type": 12,
+                        "content": {
+                          "version": "NotebookGroup/1.0",
+                          "groupType": "editable",
+                          "items": [
+                            {
+                              "type": 3,
+                              "content": {
+                                "version": "KqlItem/1.0",
+                                "query": "securityresources\n| where type =~ 'microsoft.security/softwareinventories'\n| where tolower(id) startswith strcat('{WinMachineId}', '/providers/microsoft.security/softwareinventories')\n| project Software = tostring(properties.softwareName), Vendor = tostring(properties.vendor), Version = tostring(properties.version),\n    SupportStatus = tostring(properties.endOfSupportStatus), EndOfSupport = todatetime(properties.endOfSupportDate),\n    KnownVulnerabilities = toint(properties.numberOfKnownVulnerabilities), FirstSeen = todatetime(properties.firstSeenAt)\n| order by KnownVulnerabilities desc, Software asc",
+                                "size": 3,
+                                "title": "Installed software: Defender inventory",
+                                "queryType": 1,
+                                "resourceType": "microsoft.resourcegraph/resources",
+                                "crossComponentResources": [
+                                  "{Subscription}"
+                                ],
+                                "visualization": "table",
+                                "showExportToExcel": true,
+                                "noDataMessage": "No Defender software inventory found. Enable Defender for Servers (with Defender for Endpoint integration) to populate it.",
+                                "gridSettings": {
+                                  "formatters": [],
+                                  "filter": true
+                                }
+                              },
+                              "name": "win-detail-sw-def"
+                            },
+                            {
+                              "type": 3,
+                              "content": {
+                                "version": "KqlItem/1.0",
+                                "query": "ConfigurationData\n| where TimeGenerated > ago({WinSwTimeRange})\n| where ConfigDataType == 'Software' and SoftwareType =~ 'Application'\n| where '{WinMachineId}' != 'All' and tolower(_ResourceId) == '{WinMachineId}'\n| summarize arg_max(TimeGenerated, *) by SoftwareName\n| project Software = SoftwareName, Publisher, Version = CurrentVersion, LastReported = TimeGenerated\n| order by Software asc",
+                                "size": 3,
+                                "title": "Installed software: Change Tracking inventory",
+                                "queryType": 0,
+                                "resourceType": "microsoft.operationalinsights/workspaces",
+                                "crossComponentResources": [
+                                  "{WinWorkspace}"
+                                ],
+                                "visualization": "table",
+                                "showExportToExcel": true,
+                                "noDataMessage": "Select a Windows SQL host under Machines. Change Tracking data must be collected for that host in the selected workspace and time window; records must include its full resource ID.",
+                                "gridSettings": {
+                                  "formatters": [],
+                                  "filter": true
+                                }
+                              },
+                              "name": "win-detail-sw-ct"
+                            }
+                          ]
+                        },
+                        "name": "win-detail-software",
+                        "conditionalVisibility": {
+                          "parameterName": "WinDetailTab",
+                          "comparison": "isEqualTo",
+                          "value": "software"
+                        }
+                      }
+                    ]
+                  },
+                  "name": "win-detail-group",
+                  "conditionalVisibility": {
+                    "parameterName": "WinMachineId",
+                    "comparison": "isNotEqualTo",
+                    "value": "All"
+                  }
+                }
+              ]
+            },
+            "name": "win-section-machines",
+            "conditionalVisibility": {
+              "parameterName": "WinSection",
+              "comparison": "isEqualTo",
+              "value": "machines"
+            }
+          },
+          {
+            "type": 12,
+            "content": {
+              "version": "NotebookGroup/1.0",
+              "groupType": "editable",
+              "items": [
+                {
+                  "type": 1,
+                  "content": {
+                    "json": "Machine Configuration coverage is read from Azure Resource Graph (`guestconfigurationresources`) and summarizes Guest Configuration assignments on the selected Windows SQL hosts. No assignments means none were returned; Non-compliant takes precedence over Pending; otherwise assignments are labelled Compliant. This does not confirm that a named security baseline is assigned. The Azure Policy table below reports non-compliant policy states separately; they are not included in these coverage counts."
+                  },
+                  "name": "text - baseline-explanation"
+                },
+                {
+                  "type": 3,
+                  "content": {
+                    "version": "KqlItem/1.0",
+                    "query": "resources\n| where type in~ ('microsoft.hybridcompute/machines', 'microsoft.compute/virtualmachines')\n| where properties.osType =~ 'windows' or properties.storageProfile.osDisk.osType =~ 'windows'\n| extend MachineId = tolower(id)\n| join kind=inner (\nresources\n| where type in~ ('microsoft.sqlvirtualmachine/sqlvirtualmachines', 'microsoft.azurearcdata/sqlserverinstances', 'microsoft.hybridcompute/machines')\n| where type !~ 'microsoft.hybridcompute/machines' or tostring(properties.detectedProperties.mssqldiscovered) =~ 'true'\n| extend MachineId = tolower(case(\n    type =~ 'microsoft.sqlvirtualmachine/sqlvirtualmachines', tostring(properties.virtualMachineResourceId),\n    type =~ 'microsoft.azurearcdata/sqlserverinstances', tostring(properties.containerResourceId), id))\n| where MachineId matches regex '^/subscriptions/[^/]+/resourcegroups/[^/]+/providers/microsoft[.](compute/virtualmachines|hybridcompute/machines)/[^/]+$'\n| extend Machine = tostring(split(MachineId, '/')[8]), MachineResourceGroup = tostring(split(MachineId, '/')[4]),\n    HostType = iff(MachineId contains '/microsoft.hybridcompute/machines/', 'Arc SQL host', 'Azure SQL VM')\n| where ('*' in ({ResourceGroup}) or MachineResourceGroup in~ ({ResourceGroup}))\n| summarize by MachineId, Machine, MachineResourceGroup, HostType\n| project MachineId, HostType\n) on MachineId\n| project-away MachineId1\n| extend MachineId = tolower(id), Machine = name, ArcStatus = iff(type =~ 'microsoft.hybridcompute/machines', tostring(properties.status), 'Not applicable (Azure VM)'), OSVersion = coalesce(tostring(properties.osVersion), tostring(properties.extended.instanceView.osVersion)),\n    AssessmentMode = tostring(properties.osProfile.windowsConfiguration.patchSettings.assessmentMode)\n| extend OsMatch = extract(@'(Windows Server (?:2003|2008|2012|2016|2019|2022|2025)(?: R2)?|Windows (?:XP|Vista|7|8\\.1|10|11)|Azure Stack HCI|Azure Local)', 1, strcat(tostring(properties.osSku), ' ', tostring(properties.osName), ' ', tostring(properties.extended.instanceView.osName), ' ', iff(tostring(properties.storageProfile.imageReference.publisher) =~ 'MicrosoftSQLServer', strcat('Windows Server ', extract(@'ws(2003|2008|2012|2016|2019|2022|2025)', 1, tostring(properties.storageProfile.imageReference.offer))), ''), ' ', iff(tostring(properties.storageProfile.imageReference.offer) =~ 'WindowsServer', strcat('Windows Server ', extract(@'^(2003|2008|2012|2016|2019|2022|2025)', 1, tostring(properties.storageProfile.imageReference.sku))), '')))\n| extend OS = iff(isnotempty(OsMatch), OsMatch, iff(isnotempty(tostring(properties.osSku)), tostring(properties.osSku), 'Unknown'))\n| extend EndOfSupportDate = case(\n    OS startswith 'Windows Server 2025', datetime(2034-10-10),\n    OS startswith 'Windows Server 2022', datetime(2031-10-14),\n    OS startswith 'Windows Server 2019', datetime(2029-01-09),\n    OS startswith 'Windows Server 2016', datetime(2027-01-12),\n    OS startswith 'Windows Server 2012', datetime(2023-10-10),\n    OS startswith 'Windows Server 2008', datetime(2020-01-14),\n    OS startswith 'Windows Server 2003', datetime(2015-07-14),\n    OS == 'Windows 10', datetime(2025-10-14),\n    OS == 'Windows 8.1', datetime(2023-01-10),\n    OS == 'Windows 7', datetime(2020-01-14),\n    OS == 'Windows Vista', datetime(2017-04-11),\n    OS == 'Windows XP', datetime(2014-04-08),\n    datetime(null))\n| extend SupportStatus = case(\n    OS in ('Azure Stack HCI', 'Azure Local'), 'Supported',\n    isnull(EndOfSupportDate), 'Not evaluated',\n    EndOfSupportDate < now(), 'Out of support',\n    EndOfSupportDate < now() + 365d, 'Ends within 12 months',\n    'Supported')\n| join kind=leftouter (\n    guestconfigurationresources\n    | where type =~ 'microsoft.guestconfiguration/guestconfigurationassignments'\n    | extend MachineId = substring(tolower(id), 0, indexof(tolower(id), '/providers/microsoft.guestconfiguration'))\n    | summarize Assignments = count(), NonCompliant = countif(tostring(properties.complianceStatus) =~ 'NonCompliant'), Pending = countif(tostring(properties.complianceStatus) =~ 'Pending') by MachineId\n) on MachineId\n| project-away MachineId1\n| extend Baseline = case(\n    isnull(Assignments) or Assignments == 0, 'Not enabled',\n    NonCompliant > 0, 'Non-compliant',\n    Pending > 0, 'Pending',\n    'Compliant')\n| summarize Total = count(), Compliant = countif(Baseline == 'Compliant'), NonCompliant = countif(Baseline == 'Non-compliant'),\n    Pending = countif(Baseline == 'Pending'), NotEnabled = countif(Baseline == 'Not enabled')\n| extend r = pack_array(\n    pack_array('Windows SQL hosts', Total),\n    pack_array('Compliant', Compliant),\n    pack_array('Non-compliant', NonCompliant),\n    pack_array('Pending', Pending),\n    pack_array('No baseline assigned', NotEnabled))\n| mv-expand r\n| project Metric = tostring(r[0]), Count = tolong(r[1])",
+                    "size": 0,
+                    "title": "Baseline coverage",
+                    "queryType": 1,
+                    "resourceType": "microsoft.resourcegraph/resources",
+                    "crossComponentResources": [
+                      "{Subscription}"
+                    ],
+                    "visualization": "tiles",
+                    "showExportToExcel": true,
+                    "noDataMessage": "No Windows Arc machines found.",
+                    "tileSettings": {
+                      "showBorder": true,
+                      "titleContent": {
+                        "columnMatch": "Metric",
+                        "formatter": 1
+                      },
+                      "leftContent": {
+                        "columnMatch": "Count",
+                        "formatter": 12,
+                        "formatOptions": {
+                          "palette": "auto"
+                        },
+                        "numberFormat": {
+                          "unit": 17,
+                          "options": {
+                            "maximumSignificantDigits": 3,
+                            "maximumFractionDigits": 2
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "name": "win-bl-tiles"
+                },
+                {
+                  "type": 3,
+                  "content": {
+                    "version": "KqlItem/1.0",
+                    "query": "resources\n| where type in~ ('microsoft.hybridcompute/machines', 'microsoft.compute/virtualmachines')\n| where properties.osType =~ 'windows' or properties.storageProfile.osDisk.osType =~ 'windows'\n| extend MachineId = tolower(id)\n| join kind=inner (\nresources\n| where type in~ ('microsoft.sqlvirtualmachine/sqlvirtualmachines', 'microsoft.azurearcdata/sqlserverinstances', 'microsoft.hybridcompute/machines')\n| where type !~ 'microsoft.hybridcompute/machines' or tostring(properties.detectedProperties.mssqldiscovered) =~ 'true'\n| extend MachineId = tolower(case(\n    type =~ 'microsoft.sqlvirtualmachine/sqlvirtualmachines', tostring(properties.virtualMachineResourceId),\n    type =~ 'microsoft.azurearcdata/sqlserverinstances', tostring(properties.containerResourceId), id))\n| where MachineId matches regex '^/subscriptions/[^/]+/resourcegroups/[^/]+/providers/microsoft[.](compute/virtualmachines|hybridcompute/machines)/[^/]+$'\n| extend Machine = tostring(split(MachineId, '/')[8]), MachineResourceGroup = tostring(split(MachineId, '/')[4]),\n    HostType = iff(MachineId contains '/microsoft.hybridcompute/machines/', 'Arc SQL host', 'Azure SQL VM')\n| where ('*' in ({ResourceGroup}) or MachineResourceGroup in~ ({ResourceGroup}))\n| summarize by MachineId, Machine, MachineResourceGroup, HostType\n| project MachineId, HostType\n) on MachineId\n| project-away MachineId1\n| extend MachineId = tolower(id), Machine = name, ArcStatus = iff(type =~ 'microsoft.hybridcompute/machines', tostring(properties.status), 'Not applicable (Azure VM)'), OSVersion = coalesce(tostring(properties.osVersion), tostring(properties.extended.instanceView.osVersion)),\n    AssessmentMode = tostring(properties.osProfile.windowsConfiguration.patchSettings.assessmentMode)\n| extend OsMatch = extract(@'(Windows Server (?:2003|2008|2012|2016|2019|2022|2025)(?: R2)?|Windows (?:XP|Vista|7|8\\.1|10|11)|Azure Stack HCI|Azure Local)', 1, strcat(tostring(properties.osSku), ' ', tostring(properties.osName), ' ', tostring(properties.extended.instanceView.osName), ' ', iff(tostring(properties.storageProfile.imageReference.publisher) =~ 'MicrosoftSQLServer', strcat('Windows Server ', extract(@'ws(2003|2008|2012|2016|2019|2022|2025)', 1, tostring(properties.storageProfile.imageReference.offer))), ''), ' ', iff(tostring(properties.storageProfile.imageReference.offer) =~ 'WindowsServer', strcat('Windows Server ', extract(@'^(2003|2008|2012|2016|2019|2022|2025)', 1, tostring(properties.storageProfile.imageReference.sku))), '')))\n| extend OS = iff(isnotempty(OsMatch), OsMatch, iff(isnotempty(tostring(properties.osSku)), tostring(properties.osSku), 'Unknown'))\n| extend EndOfSupportDate = case(\n    OS startswith 'Windows Server 2025', datetime(2034-10-10),\n    OS startswith 'Windows Server 2022', datetime(2031-10-14),\n    OS startswith 'Windows Server 2019', datetime(2029-01-09),\n    OS startswith 'Windows Server 2016', datetime(2027-01-12),\n    OS startswith 'Windows Server 2012', datetime(2023-10-10),\n    OS startswith 'Windows Server 2008', datetime(2020-01-14),\n    OS startswith 'Windows Server 2003', datetime(2015-07-14),\n    OS == 'Windows 10', datetime(2025-10-14),\n    OS == 'Windows 8.1', datetime(2023-01-10),\n    OS == 'Windows 7', datetime(2020-01-14),\n    OS == 'Windows Vista', datetime(2017-04-11),\n    OS == 'Windows XP', datetime(2014-04-08),\n    datetime(null))\n| extend SupportStatus = case(\n    OS in ('Azure Stack HCI', 'Azure Local'), 'Supported',\n    isnull(EndOfSupportDate), 'Not evaluated',\n    EndOfSupportDate < now(), 'Out of support',\n    EndOfSupportDate < now() + 365d, 'Ends within 12 months',\n    'Supported')\n| join kind=leftouter (\n    guestconfigurationresources\n    | where type =~ 'microsoft.guestconfiguration/guestconfigurationassignments'\n    | extend MachineId = substring(tolower(id), 0, indexof(tolower(id), '/providers/microsoft.guestconfiguration'))\n    | summarize Assignments = count(), NonCompliant = countif(tostring(properties.complianceStatus) =~ 'NonCompliant'), Pending = countif(tostring(properties.complianceStatus) =~ 'Pending') by MachineId\n) on MachineId\n| project-away MachineId1\n| extend Baseline = case(\n    isnull(Assignments) or Assignments == 0, 'Not enabled',\n    NonCompliant > 0, 'Non-compliant',\n    Pending > 0, 'Pending',\n    'Compliant')\n| project Machine, HostType, Baseline, Assignments, NonCompliant, Pending, OS, ArcStatus, ResourceGroup = resourceGroup, Subscription = subscriptionId\n| order by Machine asc",
+                    "size": 3,
+                    "title": "Machine Configurations per Server",
+                    "queryType": 1,
+                    "resourceType": "microsoft.resourcegraph/resources",
+                    "crossComponentResources": [
+                      "{Subscription}"
+                    ],
+                    "visualization": "table",
+                    "showExportToExcel": true,
+                    "noDataMessage": "No Windows Arc machines found.",
+                    "gridSettings": {
+                      "formatters": [
+                        {
+                          "columnMatch": "Baseline",
+                          "formatter": 18,
+                          "formatOptions": {
+                            "thresholdsOptions": "icons",
+                            "thresholdsGrid": [
+                              {
+                                "operator": "==",
+                                "thresholdValue": "Compliant",
+                                "representation": "success",
+                                "text": "{0}{1}"
+                              },
+                              {
+                                "operator": "==",
+                                "thresholdValue": "Pending",
+                                "representation": "2",
+                                "text": "{0}{1}"
+                              },
+                              {
+                                "operator": "==",
+                                "thresholdValue": "Non-compliant",
+                                "representation": "4",
+                                "text": "{0}{1}"
+                              },
+                              {
+                                "operator": "==",
+                                "thresholdValue": "Not enabled",
+                                "representation": "2",
+                                "text": "{0}{1}"
+                              },
+                              {
+                                "operator": "Default",
+                                "thresholdValue": null,
+                                "representation": "unknown",
+                                "text": "{0}{1}"
+                              }
+                            ]
+                          }
+                        },
+                        {
+                          "columnMatch": "ArcStatus",
+                          "formatter": 18,
+                          "formatOptions": {
+                            "thresholdsOptions": "icons",
+                            "thresholdsGrid": [
+                              {
+                                "operator": "==",
+                                "thresholdValue": "Connected",
+                                "representation": "success",
+                                "text": "{0}{1}"
+                              },
+                              {
+                                "operator": "==",
+                                "thresholdValue": "Disconnected",
+                                "representation": "4",
+                                "text": "{0}{1}"
+                              },
+                              {
+                                "operator": "==",
+                                "thresholdValue": "Expired",
+                                "representation": "4",
+                                "text": "{0}{1}"
+                              },
+                              {
+                                "operator": "Default",
+                                "thresholdValue": null,
+                                "representation": "unknown",
+                                "text": "{0}{1}"
+                              }
+                            ]
+                          }
+                        },
+                        {
+                          "columnMatch": "NonCompliant",
+                          "formatter": 8,
+                          "formatOptions": {
+                            "min": 0,
+                            "max": 10,
+                            "palette": "greenRed"
+                          }
+                        }
+                      ],
+                      "filter": true
+                    }
+                  },
+                  "name": "win-bl-machines"
+                },
+                {
+                  "type": 3,
+                  "content": {
+                    "version": "KqlItem/1.0",
+                    "query": "resources\n| where type in~ ('microsoft.hybridcompute/machines', 'microsoft.compute/virtualmachines')\n| where properties.osType =~ 'windows' or properties.storageProfile.osDisk.osType =~ 'windows'\n| extend MachineId = tolower(id)\n| join kind=inner (\nresources\n| where type in~ ('microsoft.sqlvirtualmachine/sqlvirtualmachines', 'microsoft.azurearcdata/sqlserverinstances', 'microsoft.hybridcompute/machines')\n| where type !~ 'microsoft.hybridcompute/machines' or tostring(properties.detectedProperties.mssqldiscovered) =~ 'true'\n| extend MachineId = tolower(case(\n    type =~ 'microsoft.sqlvirtualmachine/sqlvirtualmachines', tostring(properties.virtualMachineResourceId),\n    type =~ 'microsoft.azurearcdata/sqlserverinstances', tostring(properties.containerResourceId), id))\n| where MachineId matches regex '^/subscriptions/[^/]+/resourcegroups/[^/]+/providers/microsoft[.](compute/virtualmachines|hybridcompute/machines)/[^/]+$'\n| extend Machine = tostring(split(MachineId, '/')[8]), MachineResourceGroup = tostring(split(MachineId, '/')[4]),\n    HostType = iff(MachineId contains '/microsoft.hybridcompute/machines/', 'Arc SQL host', 'Azure SQL VM')\n| where ('*' in ({ResourceGroup}) or MachineResourceGroup in~ ({ResourceGroup}))\n| summarize by MachineId, Machine, MachineResourceGroup, HostType\n| project MachineId, HostType\n) on MachineId\n| project-away MachineId1\n| project machineKey = tolower(id), MachineName = name\n| join kind=inner (\nguestconfigurationresources\n| where type =~ 'microsoft.guestconfiguration/guestconfigurationassignments'\n| extend machineKey = substring(tolower(id), 0, indexof(tolower(id), '/providers/microsoft.guestconfiguration')), c = tostring(properties.complianceStatus)\n) on machineKey\n| summarize Machines = dcount(machineKey), Compliant = countif(c =~ 'Compliant'), NonCompliant = countif(c =~ 'NonCompliant'), Pending = countif(c =~ 'Pending'),\n    NonCompliantMachines = make_set_if(MachineName, c =~ 'NonCompliant', 25) by Assignment = name\n| order by NonCompliant desc, Assignment asc",
+                    "size": 3,
+                    "title": "Machine Configuration compliance by assignment",
+                    "queryType": 1,
+                    "resourceType": "microsoft.resourcegraph/resources",
+                    "crossComponentResources": [
+                      "{Subscription}"
+                    ],
+                    "visualization": "table",
+                    "showExportToExcel": true,
+                    "noDataMessage": "No Machine Configuration assignments found. Assign a Windows baseline (for example the Azure compute security baseline for Windows machines) to see compliance here.",
+                    "gridSettings": {
+                      "formatters": [
+                        {
+                          "columnMatch": "NonCompliant",
+                          "formatter": 8,
+                          "formatOptions": {
+                            "min": 0,
+                            "max": 10,
+                            "palette": "greenRed"
+                          }
+                        }
+                      ],
+                      "filter": true
+                    }
+                  },
+                  "name": "win-bl-mc"
+                },
+                {
+                  "type": 3,
+                  "content": {
+                    "version": "KqlItem/1.0",
+                    "query": "resources\n| where type in~ ('microsoft.hybridcompute/machines', 'microsoft.compute/virtualmachines')\n| where properties.osType =~ 'windows' or properties.storageProfile.osDisk.osType =~ 'windows'\n| extend MachineId = tolower(id)\n| join kind=inner (\nresources\n| where type in~ ('microsoft.sqlvirtualmachine/sqlvirtualmachines', 'microsoft.azurearcdata/sqlserverinstances', 'microsoft.hybridcompute/machines')\n| where type !~ 'microsoft.hybridcompute/machines' or tostring(properties.detectedProperties.mssqldiscovered) =~ 'true'\n| extend MachineId = tolower(case(\n    type =~ 'microsoft.sqlvirtualmachine/sqlvirtualmachines', tostring(properties.virtualMachineResourceId),\n    type =~ 'microsoft.azurearcdata/sqlserverinstances', tostring(properties.containerResourceId), id))\n| where MachineId matches regex '^/subscriptions/[^/]+/resourcegroups/[^/]+/providers/microsoft[.](compute/virtualmachines|hybridcompute/machines)/[^/]+$'\n| extend Machine = tostring(split(MachineId, '/')[8]), MachineResourceGroup = tostring(split(MachineId, '/')[4]),\n    HostType = iff(MachineId contains '/microsoft.hybridcompute/machines/', 'Arc SQL host', 'Azure SQL VM')\n| where ('*' in ({ResourceGroup}) or MachineResourceGroup in~ ({ResourceGroup}))\n| summarize by MachineId, Machine, MachineResourceGroup, HostType\n| project MachineId, HostType\n) on MachineId\n| project-away MachineId1\n| project machineKey = tolower(id), MachineName = name\n| join kind=inner (\npolicyresources\n| where type =~ 'microsoft.policyinsights/policystates'\n| where tostring(properties.resourceType) in~ ('microsoft.hybridcompute/machines', 'microsoft.compute/virtualmachines')\n| extend machineKey = tolower(tostring(properties.resourceId))\n) on machineKey\n| summarize Machines = dcount(machineKey), NonCompliant = dcountif(machineKey, tostring(properties.complianceState) =~ 'noncompliant'),\n    NonCompliantMachines = make_set_if(MachineName, tostring(properties.complianceState) =~ 'noncompliant', 25)\n    by PolicyAssignment = tostring(properties.policyAssignmentName), Reference = tostring(properties.policyDefinitionReferenceId)\n| where NonCompliant > 0\n| order by NonCompliant desc",
+                    "size": 3,
+                    "title": "Non-compliant Azure Policy states by assignment",
+                    "queryType": 1,
+                    "resourceType": "microsoft.resourcegraph/resources",
+                    "crossComponentResources": [
+                      "{Subscription}"
+                    ],
+                    "visualization": "table",
+                    "showExportToExcel": true,
+                    "noDataMessage": "No non-compliant Azure Policy states found for Windows Arc machines.",
+                    "gridSettings": {
+                      "formatters": [
+                        {
+                          "columnMatch": "NonCompliant",
+                          "formatter": 8,
+                          "formatOptions": {
+                            "min": 0,
+                            "max": 10,
+                            "palette": "greenRed"
+                          }
+                        }
+                      ],
+                      "filter": true
+                    }
+                  },
+                  "name": "win-bl-policy"
+                }
+              ]
+            },
+            "name": "win-section-baseline",
+            "conditionalVisibility": {
+              "parameterName": "WinSection",
+              "comparison": "isEqualTo",
+              "value": "baseline"
+            }
+          },
+          {
+            "type": 12,
+            "content": {
+              "version": "NotebookGroup/1.0",
+              "groupType": "editable",
+              "items": [
+                {
+                  "type": 11,
+                  "content": {
+                    "version": "LinkItem/1.0",
+                    "style": "tabs",
+                    "links": [
+                      {
+                        "id": "4a584975-1abb-5317-9911-0b2a362ab749",
+                        "cellValue": "WinSoftwareTab",
+                        "linkTarget": "parameter",
+                        "linkLabel": "Defender inventory",
+                        "subTarget": "defender",
+                        "style": "link"
+                      },
+                      {
+                        "id": "707a0d1e-4ae0-5980-aff9-c978ea0c4873",
+                        "cellValue": "WinSoftwareTab",
+                        "linkTarget": "parameter",
+                        "linkLabel": "Change Tracking inventory",
+                        "subTarget": "ct",
+                        "style": "link"
+                      },
+                      {
+                        "id": "9184ac7d-bfb8-5f92-9cd5-43e26624cfd7",
+                        "cellValue": "WinSoftwareTab",
+                        "linkTarget": "parameter",
+                        "linkLabel": "Recent changes",
+                        "subTarget": "changes",
+                        "style": "link"
+                      }
+                    ]
+                  },
+                  "name": "win-sw-tabs"
+                },
+                {
+                  "type": 12,
+                  "content": {
+                    "version": "NotebookGroup/1.0",
+                    "groupType": "editable",
+                    "items": [
+                      {
+                        "type": 1,
+                        "content": {
+                          "json": "[Open Defender for Cloud Inventory](https://portal.azure.com/#view/Microsoft_Azure_Security/SecurityMenuBlade/~/inventory) for the interactive software inventory and vulnerability recommendations. Select a machine under **Machines** to see its reported CVEs below. CVE links open the NVD reference; Defender assessment data is scoped to the selected server."
+                        },
+                        "name": "text - defender-portal-link"
+                      },
+                      {
+                        "type": 3,
+                        "content": {
+                          "version": "KqlItem/1.0",
+                          "query": "resources\n| where type in~ ('microsoft.hybridcompute/machines', 'microsoft.compute/virtualmachines')\n| where properties.osType =~ 'windows' or properties.storageProfile.osDisk.osType =~ 'windows'\n| extend MachineId = tolower(id)\n| join kind=inner (\nresources\n| where type in~ ('microsoft.sqlvirtualmachine/sqlvirtualmachines', 'microsoft.azurearcdata/sqlserverinstances', 'microsoft.hybridcompute/machines')\n| where type !~ 'microsoft.hybridcompute/machines' or tostring(properties.detectedProperties.mssqldiscovered) =~ 'true'\n| extend MachineId = tolower(case(\n    type =~ 'microsoft.sqlvirtualmachine/sqlvirtualmachines', tostring(properties.virtualMachineResourceId),\n    type =~ 'microsoft.azurearcdata/sqlserverinstances', tostring(properties.containerResourceId), id))\n| where MachineId matches regex '^/subscriptions/[^/]+/resourcegroups/[^/]+/providers/microsoft[.](compute/virtualmachines|hybridcompute/machines)/[^/]+$'\n| extend Machine = tostring(split(MachineId, '/')[8]), MachineResourceGroup = tostring(split(MachineId, '/')[4]),\n    HostType = iff(MachineId contains '/microsoft.hybridcompute/machines/', 'Arc SQL host', 'Azure SQL VM')\n| where ('*' in ({ResourceGroup}) or MachineResourceGroup in~ ({ResourceGroup}))\n| summarize by MachineId, Machine, MachineResourceGroup, HostType\n| project MachineId, HostType\n) on MachineId\n| project-away MachineId1\n| project machineKey = tolower(id), MachineName = name\n| join kind=inner (\nsecurityresources\n| where type =~ 'microsoft.security/softwareinventories'\n| extend machineKey = substring(tolower(id), 0, indexof(tolower(id), '/providers/microsoft.security/softwareinventories'))\n) on machineKey\n| summarize Machines = dcount(machineKey), Versions = dcount(tostring(properties.version)),\n    KnownVulnerabilities = sum(toint(properties.numberOfKnownVulnerabilities)),\n    OutOfSupportMachines = dcountif(machineKey, tostring(properties.endOfSupportStatus) in~ ('noLongerSupported', 'versionNotSupported')),\n    MachineNames = make_set(MachineName, 25)\n    by Software = tostring(properties.softwareName), Vendor = tostring(properties.vendor)\n| order by Machines desc, Software asc",
+                          "size": 3,
+                          "title": "Installed software: Defender inventory",
+                          "queryType": 1,
+                          "resourceType": "microsoft.resourcegraph/resources",
+                          "crossComponentResources": [
+                            "{Subscription}"
+                          ],
+                          "visualization": "table",
+                          "showExportToExcel": true,
+                          "noDataMessage": "No Defender software inventory found. Enable Defender for Servers (with Defender for Endpoint integration) to populate it.",
+                          "gridSettings": {
+                            "formatters": [
+                              {
+                                "columnMatch": "KnownVulnerabilities",
+                                "formatter": 8,
+                                "formatOptions": {
+                                  "min": 0,
+                                  "max": 50,
+                                  "palette": "greenRed"
+                                }
+                              }
+                            ],
+                            "filter": true
+                          }
+                        },
+                        "name": "win-sw-def-grid"
+                      },
+                      {
+                        "type": 3,
+                        "content": {
+                          "version": "KqlItem/1.0",
+                          "query": "securityresources\n| where type =~ 'microsoft.security/assessments'\n| where tostring(properties.metadata.recommendationCategory) in~ ('SoftwareUpdate', 'ServiceUpgrade')\n| extend MachineId = tolower(tostring(properties.resourceDetails.Id)),\n    Additional = parse_json(tostring(properties.additionalData))\n| join kind=inner (\n    resources\n    | where type in~ ('microsoft.sqlvirtualmachine/sqlvirtualmachines', 'microsoft.azurearcdata/sqlserverinstances', 'microsoft.hybridcompute/machines')\n    | where type !~ 'microsoft.hybridcompute/machines' or tostring(properties.detectedProperties.mssqldiscovered) =~ 'true'\n    | extend MachineId = tolower(case(\n        type =~ 'microsoft.sqlvirtualmachine/sqlvirtualmachines', tostring(properties.virtualMachineResourceId),\n        type =~ 'microsoft.azurearcdata/sqlserverinstances', tostring(properties.containerResourceId), id))\n    | where MachineId matches regex '^/subscriptions/[^/]+/resourcegroups/[^/]+/providers/microsoft[.](compute/virtualmachines|hybridcompute/machines)/[^/]+$'\n    | extend Machine = tostring(split(MachineId, '/')[8]),\n        MachineResourceGroup = tostring(split(MachineId, '/')[4]),\n        HostType = iff(MachineId contains '/microsoft.hybridcompute/machines/', 'Arc SQL host', 'Azure SQL VM')\n    | where '*' in ({ResourceGroup}) or MachineResourceGroup in~ ({ResourceGroup})\n    | summarize by MachineId, Machine, MachineResourceGroup, HostType\n) on MachineId\n| extend Cves = parse_json(tostring(Additional.CvesDetails))\n| mv-expand Cve = Cves\n| where isnotempty(tostring(Cve.CveId))\n| extend Software = tostring(Additional.SoftwareName),\n    Vendor = tostring(Additional.SoftwareVendor),\n    DetectedVersion = tostring(Additional.DetectedSoftwareVersions),\n    Assessment = tostring(properties.displayName),\n    CVE = tostring(Cve.CveId),\n    Severity = tostring(Cve.Severity),\n    FixStatus = tostring(Cve.FixStatus),\n    CVEFixedVersion = tostring(Cve.FixedVersion),\n    RecommendedFixedVersion = tostring(Additional.FixedVersion),\n    MaxCVSS = todouble(Additional.MaxCvssScore)\n| summarize Machines = dcount(MachineId),\n    MachineNames = make_set(Machine, 25),\n    HostTypes = make_set(HostType, 5),\n    ResourceGroups = make_set(MachineResourceGroup, 25),\n    DetectedVersions = make_set(DetectedVersion, 25),\n    Assessments = make_set(Assessment, 10),\n    CVEFixedVersions = make_set(CVEFixedVersion, 10),\n    RecommendedFixedVersions = make_set(RecommendedFixedVersion, 10),\n    MaxCVSS = max(MaxCVSS)\n    by Software, Vendor, CVE, Severity, FixStatus\n| extend NVD = strcat('https://nvd.nist.gov/vuln/detail/', CVE)\n| order by Severity asc, Software asc, CVE asc",
+                          "size": 3,
+                          "title": "CVE findings by software across SQL hosts",
+                          "queryType": 1,
+                          "resourceType": "microsoft.resourcegraph/resources",
+                          "crossComponentResources": [
+                            "{Subscription}"
+                          ],
+                          "visualization": "table",
+                          "showExportToExcel": true,
+                          "noDataMessage": "No software update/service upgrade CVEs were returned for SQL hosts in the selected subscription and resource-group scope, or Defender vulnerability assessments are unavailable. Each row groups a software/CVE pair and lists its affected machines.",
+                          "gridSettings": {
+                            "formatters": [
+                              {
+                                "columnMatch": "NVD",
+                                "formatter": 7,
+                                "formatOptions": {
+                                  "linkTarget": "Url",
+                                  "linkLabel": "NVD"
+                                }
+                              }
+                            ],
+                            "filter": true
+                          }
+                        },
+                        "name": "win-defender-cves"
+                      }
+                    ]
+                  },
+                  "name": "win-sw-defender",
+                  "conditionalVisibility": {
+                    "parameterName": "WinSoftwareTab",
+                    "comparison": "isEqualTo",
+                    "value": "defender"
+                  }
+                },
+                {
+                  "type": 12,
+                  "content": {
+                    "version": "NotebookGroup/1.0",
+                    "groupType": "editable",
+                    "items": [
+                      {
+                        "type": 3,
+                        "content": {
+                          "version": "KqlItem/1.0",
+                          "query": "ConfigurationData\n| where TimeGenerated > ago({WinSwTimeRange})\n| where ConfigDataType == 'Software' and SoftwareType =~ 'Application'\n| where '{WinMachineId}' != 'All' and tolower(_ResourceId) == '{WinMachineId}'\n| summarize arg_max(TimeGenerated, *) by Computer, SoftwareName\n| summarize Machines = dcount(Computer), Versions = dcount(CurrentVersion), MachineNames = make_set(Computer, 25) by Software = SoftwareName, Publisher\n| order by Machines desc, Software asc",
+                          "size": 3,
+                          "title": "Installed software: selected SQL host (Change Tracking)",
+                          "queryType": 0,
+                          "resourceType": "microsoft.operationalinsights/workspaces",
+                          "crossComponentResources": [
+                            "{WinWorkspace}"
+                          ],
+                          "visualization": "table",
+                          "showExportToExcel": true,
+                          "noDataMessage": "Select a Windows SQL host under Machines. Change Tracking data must be collected for that host in the selected workspace and time window; records must include its full resource ID.",
+                          "gridSettings": {
+                            "formatters": [],
+                            "filter": true
+                          }
+                        },
+                        "name": "win-sw-ct-grid"
+                      }
+                    ]
+                  },
+                  "name": "win-sw-ct",
+                  "conditionalVisibility": {
+                    "parameterName": "WinSoftwareTab",
+                    "comparison": "isEqualTo",
+                    "value": "ct"
+                  }
+                },
+                {
+                  "type": 12,
+                  "content": {
+                    "version": "NotebookGroup/1.0",
+                    "groupType": "editable",
+                    "items": [
+                      {
+                        "type": 3,
+                        "content": {
+                          "version": "KqlItem/1.0",
+                          "query": "ConfigurationChange\n| where TimeGenerated > ago({WinSwTimeRange})\n| where ConfigChangeType == 'Software' and SoftwareType =~ 'Application'\n| where '{WinMachineId}' != 'All' and tolower(_ResourceId) == '{WinMachineId}'\n| project TimeGenerated, Machine = Computer, ChangeCategory, Software = SoftwareName, Previous = column_ifexists('Previous', ''),\n    Current = column_ifexists('Current', ''), Publisher = column_ifexists('Publisher', '')\n| order by TimeGenerated desc\n| take 1000",
+                          "size": 3,
+                          "title": "Recent software changes: selected SQL host (Change Tracking)",
+                          "queryType": 0,
+                          "resourceType": "microsoft.operationalinsights/workspaces",
+                          "crossComponentResources": [
+                            "{WinWorkspace}"
+                          ],
+                          "visualization": "table",
+                          "showExportToExcel": true,
+                          "noDataMessage": "Select a Windows SQL host under Machines. Change Tracking data must be collected for that host in the selected workspace and time window; records must include its full resource ID.",
+                          "gridSettings": {
+                            "formatters": [
+                              {
+                                "columnMatch": "ChangeCategory",
+                                "formatter": 18,
+                                "formatOptions": {
+                                  "thresholdsOptions": "icons",
+                                  "thresholdsGrid": [
+                                    {
+                                      "operator": "==",
+                                      "thresholdValue": "Added",
+                                      "representation": "success",
+                                      "text": "{0}{1}"
+                                    },
+                                    {
+                                      "operator": "==",
+                                      "thresholdValue": "Modified",
+                                      "representation": "2",
+                                      "text": "{0}{1}"
+                                    },
+                                    {
+                                      "operator": "==",
+                                      "thresholdValue": "Removed",
+                                      "representation": "4",
+                                      "text": "{0}{1}"
+                                    },
+                                    {
+                                      "operator": "Default",
+                                      "thresholdValue": null,
+                                      "representation": "unknown",
+                                      "text": "{0}{1}"
+                                    }
+                                  ]
+                                }
+                              }
+                            ],
+                            "filter": true
+                          }
+                        },
+                        "name": "win-sw-changes-grid"
+                      }
+                    ]
+                  },
+                  "name": "win-sw-changes",
+                  "conditionalVisibility": {
+                    "parameterName": "WinSoftwareTab",
+                    "comparison": "isEqualTo",
+                    "value": "changes"
+                  }
+                }
+              ]
+            },
+            "name": "win-section-software",
+            "conditionalVisibility": {
+              "parameterName": "WinSection",
+              "comparison": "isEqualTo",
+              "value": "software"
+            }
+          }
+        ]
+      },
+      "name": "group - Windows Health",
+      "conditionalVisibility": {
+        "parameterName": "selMainTab",
+        "comparison": "isEqualTo",
+        "value": "WindowsHealth"
+      }
     }
   ],
   "fallbackResourceIds": [

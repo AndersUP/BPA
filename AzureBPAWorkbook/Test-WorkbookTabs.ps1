@@ -39,7 +39,7 @@ foreach ($file in $historical) {
         }
     }
 }
-foreach ($target in @('Resources', 'BPADashboard', 'CustomMonitoring', 'StorageIO', 'MigrationAssessment', 'AzureAdvisor', 'AzureUpdates')) {
+foreach ($target in @('Resources', 'BPADashboard', 'CustomMonitoring', 'StorageIO', 'MigrationAssessment', 'AzureAdvisor', 'AzureUpdates', 'WindowsHealth')) {
     if ($target -notin $targets) { throw "Missing required tab: $target" }
 }
 $storage = @($latest.items | Where-Object { $_.ContainsKey('conditionalVisibility') -and $_.conditionalVisibility.value -eq 'StorageIO' })[0]
@@ -94,10 +94,8 @@ foreach ($orphan in @('MigrationBpaWorkspace', 'MigrationBpaTimeRange', 'Merge/1
     if ($migrationJson.Contains($orphan)) { throw "Orphaned IaaS component/reference: $orphan" }
 }
 $header = @($migration.content.items | Where-Object { $_.name -eq 'text - migration-header' })[0].content.json
-if (-not $header.Contains('properties.migration.assessment') -or
-    -not $header.Contains('Unified inventory and BPA runs do not establish migration readiness') -or
-    -not $header.Contains('SSMS 22+') -or -not $header.Contains('not ingested by this workbook')) {
-    throw 'Migration header must identify the actual readiness source and native SQL VM assessment limitation.'
+if ($header -ne '# Migration Assessment') {
+    throw 'Migration header must contain only the tab title.'
 }
 $advisor = @($latest.items | Where-Object { $_.name -eq 'group - Azure Advisor' })[0]
 $advisorQueries = @($advisor.content.items | Where-Object { $_.type -eq 3 })
@@ -205,4 +203,76 @@ foreach ($entry in @(
     $heading = @($entry.Group.content.items | Where-Object { $_.name -eq $entry.Name })[0]
     if ($heading.content.json -cne $entry.Text) { throw "Header must contain only its title: $($entry.Name)" }
 }
-Write-Output "PASS: seven tabs; compact layouts and title-only headers; storage query fidelity; readiness defaults; Advisor and Updates scope, selection, and patch guards."
+$windows = @($latest.items | Where-Object { $_.name -eq 'group - Windows Health' })
+if ($targets.Count -ne 8 -or $windows.Count -ne 1) {
+    throw 'Expected eight tabs including Windows Health.'
+}
+$windowsParameters = @($windows[0].content.items | Where-Object { $_.type -eq 9 } |
+    ForEach-Object { $_.content.parameters.name })
+foreach ($parameter in @('WinSection', 'WinDetailTab', 'WinSoftwareTab', 'WinMachineId', 'WinMachineName', 'WinWorkspace', 'WinSwTimeRange')) {
+    if ($parameter -notin $windowsParameters) { throw "Missing Windows Health parameter: $parameter" }
+}
+foreach ($section in @('win-section-machines', 'win-section-baseline', 'win-section-software')) {
+    if ($section -notin $windows[0].content.items.name) { throw "Missing Windows Health section: $section" }
+}
+$windowsSectionLinks = @($windows[0].content.items | Where-Object { $_.name -eq 'win-section-tabs' })[0].content.links
+if ('updates' -in $windowsSectionLinks.subTarget -or 'win-section-updates' -in $windows[0].content.items.name) {
+    throw 'Windows Health must not duplicate the estate Updates subtab.'
+}
+function Get-WindowsQueryItems($item) {
+    if ($item.content.ContainsKey('query')) { $item }
+    foreach ($child in $item.content['items']) { Get-WindowsQueryItems $child }
+}
+$windowsQueries = @(Get-WindowsQueryItems $windows[0])
+foreach ($queryItem in $windowsQueries) {
+    $query = $queryItem.content.query
+    if ($queryItem.name -in @('win-tiles', 'win-machines-grid', 'win-detail-updates-grid',
+        'win-bl-tiles', 'win-bl-machines', 'win-bl-mc', 'win-bl-policy', 'win-sw-def-grid')) {
+        foreach ($required in @('microsoft.compute/virtualmachines', 'microsoft.hybridcompute/machines',
+            'microsoft.sqlvirtualmachine/sqlvirtualmachines', 'microsoft.azurearcdata/sqlserverinstances',
+            'properties.detectedProperties.mssqldiscovered', 'properties.storageProfile.osDisk.osType',
+            'MachineResourceGroup in~ ({ResourceGroup})')) {
+            if (-not $query.Contains($required)) {
+                throw "Windows SQL host scope missing $required in $($queryItem.name)"
+            }
+        }
+    }
+    if ($queryItem.content.queryType -eq 0 -and
+        (-not $query.Contains("'{WinMachineId}' != 'All' and tolower(_ResourceId) == '{WinMachineId}'") -or
+        $query.Contains("Computer =~ '{WinMachineName}'"))) {
+        throw "Change Tracking must match the selected SQL host by resource ID: $($queryItem.name)"
+    }
+}
+$windowsGrid = @($windowsQueries | Where-Object name -eq 'win-machines-grid')[0].content.query
+if (-not $windowsGrid.Contains('microsoft.compute/virtualmachines/patchassessmentresults') -or
+    -not $windowsGrid.Contains('Not applicable (Azure VM)') -or
+    -not $windowsGrid.Contains('| project MachineId, Machine, HostType, OS,')) {
+    throw 'Windows Health must show native SQL VM patch assessment and host type without an Arc connection requirement.'
+}
+$baselineGroup = @($windows[0].content.items | Where-Object name -eq 'win-section-baseline')[0]
+$baselineNote = @($baselineGroup.content.items | Where-Object name -eq 'text - baseline-explanation')[0]
+if ($null -eq $baselineNote -or $baselineGroup.content.items[0].name -ne 'text - baseline-explanation' -or
+    -not $baselineNote.content.json.Contains('guestconfigurationresources') -or
+    -not $baselineNote.content.json.Contains('not included in these coverage counts')) {
+    throw 'Baseline section must explain the Machine Configuration source and separate Azure Policy counts.'
+}
+$defenderSoftware = @($windowsQueries | Where-Object name -eq 'win-sw-def-grid')[0]
+$cveTable = @($windowsQueries | Where-Object name -eq 'win-defender-cves')[0]
+$softwareSection = @($windows[0].content.items | Where-Object name -eq 'win-section-software')[0]
+$softwareDefenderGroup = @($softwareSection.content.items | Where-Object name -eq 'win-sw-defender')[0]
+$defenderLink = @($softwareDefenderGroup.content.items | Where-Object name -eq 'text - defender-portal-link')[0]
+if ($null -eq $cveTable -or $null -eq $defenderLink -or
+    -not $defenderLink.content.json.Contains('SecurityMenuBlade/~/inventory') -or
+    -not $cveTable.content.query.Contains("microsoft.security/assessments") -or
+    -not $cveTable.content.query.Contains('CvesDetails') -or
+    $cveTable.content.query.Contains('{WinMachineId}') -or
+    -not $cveTable.content.query.Contains('MachineResourceGroup in~ ({ResourceGroup})') -or
+    -not $cveTable.content.query.Contains('MachineNames = make_set(Machine, 25)') -or
+    -not $cveTable.content.query.Contains('Machines = dcount(MachineId)') -or
+    -not $cveTable.content.query.Contains('HostTypes = make_set(HostType, 5)') -or
+    -not $cveTable.content.query.Contains('CVEFixedVersion') -or
+    -not $cveTable.content.query.Contains('NVD') -or
+    -not $defenderSoftware.content.query.Contains('numberOfKnownVulnerabilities')) {
+    throw 'Defender software must retain inventory counts and show selected-host CVE-level assessment details with portal/NVD links.'
+}
+Write-Output "PASS: eight tabs including Windows Health; compact layouts and title-only headers; storage query fidelity; readiness defaults; Advisor and Updates scope, selection, and patch guards."
