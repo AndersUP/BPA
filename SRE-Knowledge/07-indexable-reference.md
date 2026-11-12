@@ -19,17 +19,22 @@ The environment collects BPA assessment results and SQL Server performance count
 ### Install-AzureArcAgent-SqlBPA.ps1
 Installs the Azure Connected Machine Agent on a non-Azure server, connects it to Azure Arc, and enables SQL BPA. Requires: TenantId, SubscriptionId, ResourceGroupName, Location, ServicePrincipalClientId, ServicePrincipalSecret, WorkspaceId, WorkspaceKey. The service principal needs "Azure Connected Machine Onboarding" role.
 
-### Install-SqlIaaSExtension-BPA.ps1
-Registers Azure VMs with the SQL IaaS Extension in Full mode and enables SQL BPA. Supports single or bulk VM enablement. Can configure weekly assessment schedules. Requires: SubscriptionId, ResourceGroupName, VmNames, Location, WorkspaceName.
+### Azure VM assessment and alerts
+[sql-assessment.tf](../terraform/sql-assessment.tf) manages SQL IaaS registration,
+BPA scheduling, and AMA. [alerts.tf](../terraform/alerts.tf) manages alert rules
+and the email action group.
 
 ### Create-LabEnvironment.ps1
-End-to-end lab deployment: runs Terraform to create infrastructure, enables BPA on Azure VMs, creates Hyper-V VMs, onboards them to Azure Arc, and enables BPA on Arc machines.
+Azure-only lab deployment: reads tfvars, bootstraps remote state and blob RBAC,
+then runs Terraform for VMs, BPA, monitoring, alerts, and the workbook.
+Hyper-V provisioning and Arc onboarding are separate workflows.
 
 ### Remove-OldDcrAssociations.ps1
 Removes legacy DCR and DCE associations that were auto-created by Azure CLI before Terraform migration. Run before `terraform apply` if migrating.
 
-### Import-DcrDceToTerraform.ps1
-Imports existing Azure DCR and DCE resources into Terraform state for migration from PowerShell-managed to Terraform-managed resources.
+### Import existing resources
+Use explicit `terraform import` commands with verified resource IDs as described
+in [DCR/DCE migration](../docs/DCR-DCE-MIGRATION.md).
 
 ---
 

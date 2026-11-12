@@ -5,7 +5,72 @@ Alerts cover five categories: SQL performance (critical), SQL performance (warni
 BPA assessment health, agent & data pipeline health, and capacity.
 
 All alerts are implemented as Azure Monitor Scheduled Query Rules against the Log Analytics
-workspace and can be deployed using the `Create-SqlAlerts.ps1` script in the repository root.
+workspace. The Terraform lab deploys them natively through
+[alerts.tf](../terraform/alerts.tf). The redundant PowerShell deployment script
+has been removed; use Terraform to manage these resources.
+
+## Terraform deployment
+
+Set `alert_email_address` in your local Terraform variable file, then review
+`terraform plan` and apply it. Terraform manages the `SQL-BPA-Alerts` action
+group and 22 rules, scoped to the workspace created by the lab. Alerting and
+log scans can incur costs. Destroying these Terraform resources removes the
+rules and action group.
+
+Query validation is skipped at creation so a new workspace without `Perf` or
+`Heartbeat` data can be deployed. This does not verify queries at runtime:
+after agents upload data, run the queries in Logs, inspect alert health, and
+test the action group's email delivery.
+
+### Differences from the PowerShell definitions
+
+- The 7-day stale-assessment rule (#17) is included **disabled**, as agreed.
+  The original 1-day query window cannot find records older than 7 days, and
+  scheduled-query alerts have a maximum 48-hour evaluation lookback. Do not
+  enable it unchanged; it needs a separate long-lookback monitoring solution.
+- Heartbeat and performance-gap rules (#6, #7, #18) look back 48 hours while
+  retaining their 10/15/30-minute absence thresholds and evaluation frequencies.
+  Their aggregate is measured with `Total`, not a count of the single summary
+  row (which could alert even when the summary value is zero).
+  They only detect machines seen in that lookback: never-seen machines and
+  machines absent for more than 48 hours require inventory-based monitoring.
+- Findings spike (#21) reads the lab's `SqlAssessment_CL` CSV records instead
+  of the legacy `SQLAssessmentRecommendation` table. It counts distinct
+  non-passed checks from the latest ingested assessment per instance within the
+  last day, using the workbook's severity convention (`Severity >= 0`).
+  It is an absolute threshold of 20 findings, not a comparison with a prior run.
+- Other names, severities, thresholds, windows, and evaluation frequencies are
+  retained. Notification emails use the common alert schema.
+
+Expected shutdowns can trigger the health rules. Review thresholds and alert
+processing/suppression for your lab's shutdown schedule.
+
+With Terraform 1.15 or later, run the offline provider-mocked regression checks
+from the Terraform directory using `terraform test`. They verify the rule
+count, enabled state, email routing, and collection-table/query configuration;
+they do not execute KQL or deploy resources to Azure.
+
+### Import existing script-created resources
+
+No Azure state import is performed by editing configuration. If these
+resources already exist, import them before applying, from the Terraform
+directory, using their actual resource IDs:
+
+```powershell
+terraform import azurerm_monitor_action_group.sql_bpa `
+    "/subscriptions/<subscription-id>/resourceGroups/<resource-group>/providers/Microsoft.Insights/actionGroups/SQL-BPA-Alerts"
+
+terraform import 'azurerm_monitor_scheduled_query_rules_alert_v2.sql_bpa[\"SQL-BPA-01-PLE-Critical\"]' `
+    "/subscriptions/<subscription-id>/resourceGroups/<resource-group>/providers/Microsoft.Insights/scheduledQueryRules/SQL-BPA-01-PLE-Critical"
+```
+
+Repeat the second command for every existing rule, using the exact names from
+[alerts.tf](../terraform/alerts.tf). If a custom action-group name was used,
+reconcile it with the configuration before importing. Review the plan for the
+intentional query changes above and the disabled stale-assessment rule.
+
+The remaining reference describes the original script's rules. For the
+Terraform deployment, the differences above take precedence.
 
 ---
 
@@ -276,24 +341,18 @@ Perf
 
 ## Deploying All Alerts
 
-Use the `Create-SqlAlerts.ps1` script in the repository root:
+Set `alert_email_address` in your local tfvars, then run from the repository root:
 
 ```powershell
-# Deploy all alerts using defaults from terraform.tfvars
-.\Create-SqlAlerts.ps1
-
-# Or specify parameters explicitly
-.\Create-SqlAlerts.ps1 `
-    -ResourceGroupName "sql-bpa-lab-rg" `
-    -WorkspaceName "sql-bpa-law" `
-    -ActionGroupEmail "dba@company.com"
-
-# Remove all alerts (to recreate or clean up)
-.\Create-SqlAlerts.ps1 -RemoveExisting
+Push-Location .\terraform
+terraform plan -out=lab.tfplan
+terraform apply lab.tfplan
+Pop-Location
 ```
 
-The script creates action groups, deploys all 22 alert rules, and validates each one.
-See `Create-SqlAlerts.ps1` for the full implementation.
+Initialize Terraform first as described in [the lab guide](AZURE-TERRAFORM-LAB.md).
+Terraform deploys the action group and all 22 definitions, with rule #17 disabled.
+Import existing resources before applying; see the migration instructions above.
 
 ---
 

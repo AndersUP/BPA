@@ -41,6 +41,21 @@ variable "admin_username" {
   default     = "sqladmin"
 }
 
+variable "vm_size_overrides" {
+  description = "Optional per-VM Azure size overrides for regional capacity restrictions"
+  type        = map(string)
+  default     = {}
+
+  validation {
+    condition = alltrue([
+      for name, size in var.vm_size_overrides :
+      contains(["sql-bpa-01", "sql-bpa-02", "sql-bpa-03", "sql-bpa-04", "sql-bpa-05"], name) &&
+      length(trimspace(size)) > 0
+    ])
+    error_message = "Use lab VM names sql-bpa-01 through sql-bpa-05 and non-empty size values."
+  }
+}
+
 variable "shutdown_time" {
   description = "Daily auto-shutdown time in HHMM format (UTC)"
   type        = string
@@ -51,6 +66,16 @@ variable "script_version" {
   description = "Increment to force the SQL configuration script to re-run on all VMs"
   type        = number
   default     = 1
+}
+
+variable "alert_email_address" {
+  description = "Email address for SQL BPA alert notifications"
+  type        = string
+
+  validation {
+    condition     = can(regex("^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$", var.alert_email_address))
+    error_message = "Set alert_email_address to a valid notification email address."
+  }
 }
 
 variable "tags" {

@@ -41,7 +41,7 @@
             "multiSelect": true,
             "quote": "'",
             "delimiter": ",",
-            "query": "resourceContainers \r\n| where type == \"microsoft.resources/subscriptions/resourcegroups\"\r\n| join kind = inner (\r\n    resourcecontainers\r\n    | where type == \"microsoft.resources/subscriptions\"\r\n    | project subscriptionId, subscriptionName = name\r\n) on $left.subscriptionId == $right.subscriptionId\r\n| project resourceGroup, name, subscriptionId, subscriptionName\r\n| join kind = inner (\r\n    resources\r\n    | where type == \"microsoft.hybridcompute/machines\"\r\n    | distinct resourceGroup, subscriptionId\r\n) on resourceGroup, subscriptionId\r\n| project value = resourceGroup, label = name, group = subscriptionName",
+            "query": "resourceContainers \r\n| where type == \"microsoft.resources/subscriptions/resourcegroups\"\r\n| join kind = inner (\r\n    resourcecontainers\r\n    | where type == \"microsoft.resources/subscriptions\"\r\n    | project subscriptionId, subscriptionName = name\r\n) on $left.subscriptionId == $right.subscriptionId\r\n| project resourceGroup, name, subscriptionId, subscriptionName\r\n| join kind = inner (\r\n    resources\r\n    | where type in~ ('microsoft.hybridcompute/machines', 'microsoft.sqlvirtualmachine/sqlvirtualmachines', 'microsoft.azurearcdata/sqlserverinstances')\r\n    | distinct resourceGroup, subscriptionId\r\n) on resourceGroup, subscriptionId\r\n| project value = resourceGroup, label = name, group = subscriptionName",
             "crossComponentResources": [
               "{Subscription}"
             ],
@@ -98,11 +98,35 @@
             "style": "link"
           },
           {
+            "id": "c3d4e5f6-a7b8-4c9d-0e1f-2a3b4c5d6e7f",
+            "cellValue": "selMainTab",
+            "linkTarget": "parameter",
+            "linkLabel": "Storage & I/O Analysis",
+            "subTarget": "StorageIO",
+            "style": "link"
+          },
+          {
             "id": "a8b9c0d1-e2f3-4a5b-6c7d-8e9f0a1b2c3d",
             "cellValue": "selMainTab",
             "linkTarget": "parameter",
             "linkLabel": "Migration Assessment",
             "subTarget": "MigrationAssessment",
+            "style": "link"
+          },
+          {
+            "id": "d2a19155-d1de-410d-b093-894a7522b858",
+            "cellValue": "selMainTab",
+            "linkTarget": "parameter",
+            "linkLabel": "Azure Advisor",
+            "subTarget": "AzureAdvisor",
+            "style": "link"
+          },
+          {
+            "id": "1c2a2968-48ad-4228-9d4c-9a2c6e1d63bc",
+            "cellValue": "selMainTab",
+            "linkTarget": "parameter",
+            "linkLabel": "Azure Updates",
+            "subTarget": "AzureUpdates",
             "style": "link"
           }
         ]
@@ -1585,7 +1609,831 @@
           {
             "type": 1,
             "content": {
-              "json": "# Migration Assessment\nMigration readiness, right-sized SKU recommendations, and monthly cost estimates for each SQL Server instance. Evaluates each instance for **Azure SQL Managed Instance**, **Azure SQL Database**, and **SQL Server on Azure VM**.\n\n> Data is read from Azure Resource Graph under `microsoft.azurearcdata/sqlserverinstances` (`properties.migration.assessment`). This covers SQL Server enabled by Azure Arc **and** SQL Server on Azure VMs surfaced through **unified inventory (preview)** with the SQL IaaS Agent extension `2.0.226.0`+ — both project into the same resource type, so IaaS VMs appear here automatically once assessed. **Select a server row** for cost, settings, SKU, and assessment-issue detail. See the IaaS coverage section below for VMs not yet projected."
+              "json": "# Storage & I/O Analysis\r\nDisk configuration, live I/O performance metrics, and storage best practice recommendations for SQL Server VMs."
+            },
+            "name": "text - storage-header"
+          },
+          {
+            "type": 1,
+            "content": {
+              "json": "---\r\n## Disk Configuration (Azure VMs)"
+            },
+            "name": "text - disk-config-header"
+          },
+          {
+            "type": 3,
+            "content": {
+              "version": "KqlItem/1.0",
+              "query": "resources\r\n| where type =~ 'microsoft.compute/disks'\r\n| where ('*' in ({ResourceGroup}) or resourceGroup in ({ResourceGroup}))\r\n| extend diskSku = tostring(sku.name)\r\n| extend diskSizeGB = toint(properties.diskSizeGB)\r\n| extend osType = tostring(properties.osType)\r\n| project diskId = tolower(id), diskName = name, diskSku, diskSizeGB, osType, diskRG = resourceGroup\r\n| join kind=inner (\r\n    resources\r\n    | where type =~ 'microsoft.compute/virtualmachines'\r\n    | where ('*' in ({ResourceGroup}) or resourceGroup in ({ResourceGroup}))\r\n    | extend vmSize = tostring(properties.hardwareProfile.vmSize)\r\n    | extend osDiskId = tolower(tostring(properties.storageProfile.osDisk.managedDisk.id))\r\n    | extend osDiskCaching = tostring(properties.storageProfile.osDisk.caching)\r\n    | extend dataDisks = properties.storageProfile.dataDisks\r\n    | extend dataDiskCount = array_length(dataDisks)\r\n    | mv-expand disk = dataDisks\r\n    | extend dataDiskId = tolower(tostring(disk.managedDisk.id))\r\n    | extend dataDiskCaching = tostring(disk.caching)\r\n    | extend diskLun = toint(disk.lun)\r\n    | project vmName = name, vmSize, osDiskId, osDiskCaching, dataDiskCount, diskLun, dataDiskId, dataDiskCaching, vmRG = resourceGroup\r\n) on $left.diskId == $right.dataDiskId\r\n| join kind=leftouter (\r\n    resources\r\n    | where type =~ 'microsoft.compute/disks'\r\n    | project osDiskLookup = tolower(id), osDiskSku = tostring(sku.name), osDiskSizeGB = toint(properties.diskSizeGB)\r\n) on $left.osDiskId == $right.osDiskLookup\r\n| project vmName, vmSize, osDiskSku, osDiskSizeGB, osDiskCaching, dataDiskCount, diskLun, dataDiskSku = diskSku, dataDiskSizeGB = diskSizeGB, dataDiskCaching\r\n| order by vmName asc, diskLun asc",
+              "size": 3,
+              "title": "VM Disk Configuration",
+              "showExportToExcel": true,
+              "queryType": 1,
+              "resourceType": "microsoft.resourcegraph/resources",
+              "crossComponentResources": [
+                "{Subscription}"
+              ],
+              "gridSettings": {
+                "formatters": [
+                  {
+                    "columnMatch": "osDiskSku",
+                    "formatter": 18,
+                    "formatOptions": {
+                      "thresholdsOptions": "icons",
+                      "thresholdsGrid": [
+                        {
+                          "operator": "contains",
+                          "thresholdValue": "Premium",
+                          "representation": "success",
+                          "text": "{0}"
+                        },
+                        {
+                          "operator": "contains",
+                          "thresholdValue": "StandardSSD",
+                          "representation": "2",
+                          "text": "{0}"
+                        },
+                        {
+                          "operator": "Default",
+                          "thresholdValue": null,
+                          "representation": "3",
+                          "text": "{0}"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "columnMatch": "dataDiskSku",
+                    "formatter": 18,
+                    "formatOptions": {
+                      "thresholdsOptions": "icons",
+                      "thresholdsGrid": [
+                        {
+                          "operator": "contains",
+                          "thresholdValue": "Premium",
+                          "representation": "success",
+                          "text": "{0}"
+                        },
+                        {
+                          "operator": "contains",
+                          "thresholdValue": "StandardSSD",
+                          "representation": "2",
+                          "text": "{0}"
+                        },
+                        {
+                          "operator": "Default",
+                          "thresholdValue": null,
+                          "representation": "3",
+                          "text": "{0}"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "columnMatch": "dataDiskCaching",
+                    "formatter": 18,
+                    "formatOptions": {
+                      "thresholdsOptions": "icons",
+                      "thresholdsGrid": [
+                        {
+                          "operator": "==",
+                          "thresholdValue": "ReadOnly",
+                          "representation": "success",
+                          "text": "{0}"
+                        },
+                        {
+                          "operator": "==",
+                          "thresholdValue": "None",
+                          "representation": "2",
+                          "text": "{0}"
+                        },
+                        {
+                          "operator": "Default",
+                          "thresholdValue": null,
+                          "representation": "warning",
+                          "text": "{0}"
+                        }
+                      ]
+                    }
+                  }
+                ],
+                "filter": true,
+                "labelSettings": [
+                  {
+                    "columnId": "vmName",
+                    "label": "VM Name"
+                  },
+                  {
+                    "columnId": "vmSize",
+                    "label": "VM Size"
+                  },
+                  {
+                    "columnId": "osDiskSku",
+                    "label": "OS Disk SKU"
+                  },
+                  {
+                    "columnId": "osDiskSizeGB",
+                    "label": "OS Disk GB"
+                  },
+                  {
+                    "columnId": "osDiskCaching",
+                    "label": "OS Caching"
+                  },
+                  {
+                    "columnId": "dataDiskCount",
+                    "label": "Data Disks"
+                  },
+                  {
+                    "columnId": "diskLun",
+                    "label": "LUN"
+                  },
+                  {
+                    "columnId": "dataDiskSku",
+                    "label": "Disk SKU"
+                  },
+                  {
+                    "columnId": "dataDiskSizeGB",
+                    "label": "Disk GB"
+                  },
+                  {
+                    "columnId": "dataDiskCaching",
+                    "label": "Caching"
+                  }
+                ]
+              }
+            },
+            "name": "query - disk-config"
+          },
+          {
+            "type": 3,
+            "content": {
+              "version": "KqlItem/1.0",
+              "query": "resources\r\n| where type =~ 'microsoft.compute/virtualmachines'\r\n| where ('*' in ({ResourceGroup}) or resourceGroup in ({ResourceGroup}))\r\n| extend osDiskId = tolower(tostring(properties.storageProfile.osDisk.managedDisk.id))\r\n| extend osDiskCaching = tostring(properties.storageProfile.osDisk.caching)\r\n| extend dataDisks = properties.storageProfile.dataDisks\r\n| extend dataDiskCount = array_length(dataDisks)\r\n| mv-expand disk = dataDisks\r\n| extend dataDiskId = tolower(tostring(disk.managedDisk.id))\r\n| extend diskCaching = tostring(disk.caching)\r\n| join kind=leftouter (\r\n    resources\r\n    | where type =~ 'microsoft.compute/disks'\r\n    | project osDiskLookup = tolower(id), osDiskSku = tostring(sku.name)\r\n) on $left.osDiskId == $right.osDiskLookup\r\n| join kind=leftouter (\r\n    resources\r\n    | where type =~ 'microsoft.compute/disks'\r\n    | project dataDiskLookup = tolower(id), diskSku = tostring(sku.name)\r\n) on $left.dataDiskId == $right.dataDiskLookup\r\n| summarize \r\n    DataDisks = max(dataDiskCount),\r\n    PremiumDisks = countif(diskSku contains 'Premium'),\r\n    ReadOnlyDisks = countif(diskCaching == 'ReadOnly'),\r\n    NoCacheDisks = countif(diskCaching == 'None')\r\n    by name, osDiskSku, osDiskCaching\r\n| extend \r\n    OsDiskCheck = case(osDiskSku contains 'Premium', strcat('Pass: ', osDiskSku), osDiskSku contains 'StandardSSD', strcat('OK: ', osDiskSku), strcat('Fail: ', osDiskSku)),\r\n    DataDiskTierCheck = iff(PremiumDisks == DataDisks, strcat('Pass: All Premium (', DataDisks, ')'), iff(PremiumDisks > 0, strcat('Partial: ', PremiumDisks, '/', DataDisks, ' Premium'), strcat('Fail: No Premium (', DataDisks, ' disks)'))),\r\n    CachingCheck = iff(ReadOnlyDisks > 0, strcat('Pass: ', ReadOnlyDisks, '/', DataDisks, ' ReadOnly'), 'Fail: No ReadOnly caching'),\r\n    MultiDiskCheck = iff(DataDisks > 1, strcat('Pass: ', DataDisks, ' disks (striping possible)'), strcat('Review: Only ', DataDisks, ' disk'))\r\n| project name, OsDiskCheck, DataDiskTierCheck, CachingCheck, MultiDiskCheck, DataDisks\r\n| order by name asc",
+              "size": 3,
+              "title": "Storage Best Practices Checklist",
+              "noDataMessage": "No Azure VMs found",
+              "queryType": 1,
+              "resourceType": "microsoft.resourcegraph/resources",
+              "crossComponentResources": [
+                "{Subscription}"
+              ],
+              "gridSettings": {
+                "formatters": [
+                  {
+                    "columnMatch": "OsDiskCheck",
+                    "formatter": 18,
+                    "formatOptions": {
+                      "thresholdsOptions": "icons",
+                      "thresholdsGrid": [
+                        {
+                          "operator": "startsWith",
+                          "thresholdValue": "Pass",
+                          "representation": "success",
+                          "text": "{0}"
+                        },
+                        {
+                          "operator": "startsWith",
+                          "thresholdValue": "OK",
+                          "representation": "2",
+                          "text": "{0}"
+                        },
+                        {
+                          "operator": "Default",
+                          "thresholdValue": null,
+                          "representation": "3",
+                          "text": "{0}"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "columnMatch": "DataDiskTierCheck",
+                    "formatter": 18,
+                    "formatOptions": {
+                      "thresholdsOptions": "icons",
+                      "thresholdsGrid": [
+                        {
+                          "operator": "startsWith",
+                          "thresholdValue": "Pass",
+                          "representation": "success",
+                          "text": "{0}"
+                        },
+                        {
+                          "operator": "startsWith",
+                          "thresholdValue": "Partial",
+                          "representation": "2",
+                          "text": "{0}"
+                        },
+                        {
+                          "operator": "Default",
+                          "thresholdValue": null,
+                          "representation": "3",
+                          "text": "{0}"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "columnMatch": "CachingCheck",
+                    "formatter": 18,
+                    "formatOptions": {
+                      "thresholdsOptions": "icons",
+                      "thresholdsGrid": [
+                        {
+                          "operator": "startsWith",
+                          "thresholdValue": "Pass",
+                          "representation": "success",
+                          "text": "{0}"
+                        },
+                        {
+                          "operator": "Default",
+                          "thresholdValue": null,
+                          "representation": "3",
+                          "text": "{0}"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "columnMatch": "MultiDiskCheck",
+                    "formatter": 18,
+                    "formatOptions": {
+                      "thresholdsOptions": "icons",
+                      "thresholdsGrid": [
+                        {
+                          "operator": "startsWith",
+                          "thresholdValue": "Pass",
+                          "representation": "success",
+                          "text": "{0}"
+                        },
+                        {
+                          "operator": "startsWith",
+                          "thresholdValue": "Review",
+                          "representation": "2",
+                          "text": "{0}"
+                        },
+                        {
+                          "operator": "Default",
+                          "thresholdValue": null,
+                          "representation": "3",
+                          "text": "{0}"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "columnMatch": "DataDisks",
+                    "formatter": 5
+                  }
+                ],
+                "filter": true,
+                "labelSettings": [
+                  {
+                    "columnId": "name",
+                    "label": "VM Name"
+                  },
+                  {
+                    "columnId": "OsDiskCheck",
+                    "label": "OS Disk Tier (Premium recommended)"
+                  },
+                  {
+                    "columnId": "DataDiskTierCheck",
+                    "label": "Data Disk Tier (Premium recommended)"
+                  },
+                  {
+                    "columnId": "CachingCheck",
+                    "label": "Data Disk Caching (ReadOnly recommended)"
+                  },
+                  {
+                    "columnId": "MultiDiskCheck",
+                    "label": "Multi-Disk (2+ for IOPS striping)"
+                  }
+                ]
+              }
+            },
+            "name": "query - storage-checklist"
+          },
+          {
+            "type": 1,
+            "content": {
+              "json": "---\r\n## Live I/O Performance\r\nDisk latency, IOPS, and queue length from performance counters collected by Azure Monitor Agent."
+            },
+            "name": "text - io-perf-header"
+          },
+          {
+            "type": 9,
+            "content": {
+              "version": "KqlParameterItem/1.0",
+              "crossComponentResources": [
+                "{Subscription}"
+              ],
+              "parameters": [
+                {
+                  "id": "d4e5f6a7-b8c9-4d0e-1f2a-3b4c5d6e7f8a",
+                  "version": "KqlParameterItem/1.0",
+                  "name": "IoWorkspace",
+                  "label": "Log Analytics Workspace",
+                  "type": 2,
+                  "description": "Workspace(s) receiving disk performance data from AMA",
+                  "isRequired": true,
+                  "multiSelect": true,
+                  "quote": "'",
+                  "delimiter": ",",
+                  "query": "resources\r\n| where type =~ 'microsoft.operationalinsights/workspaces'\r\n| project value = id, label = name, group = subscriptionId",
+                  "crossComponentResources": [
+                    "{Subscription}"
+                  ],
+                  "typeSettings": {
+                    "additionalResourceOptions": [
+                      "value::all"
+                    ],
+                    "showDefault": false
+                  },
+                  "defaultValue": "value::all",
+                  "queryType": 1,
+                  "resourceType": "microsoft.resourcegraph/resources"
+                },
+                {
+                  "id": "e5f6a7b8-c9d0-4e1f-2a3b-4c5d6e7f8a9b",
+                  "version": "KqlParameterItem/1.0",
+                  "name": "IoTimeRange",
+                  "label": "Time Range",
+                  "type": 2,
+                  "isRequired": true,
+                  "typeSettings": {
+                    "additionalResourceOptions": []
+                  },
+                  "jsonData": "[{\"value\":\"1h\",\"label\":\"Last 1 hour\"},{\"value\":\"6h\",\"label\":\"Last 6 hours\"},{\"value\":\"24h\",\"label\":\"Last 24 hours\"},{\"value\":\"7d\",\"label\":\"Last 7 days\"}]",
+                  "value": "24h"
+                }
+              ],
+              "style": "pills",
+              "queryType": 1,
+              "resourceType": "microsoft.resourcegraph/resources"
+            },
+            "name": "parameters - io"
+          },
+          {
+            "type": 3,
+            "content": {
+              "version": "KqlItem/1.0",
+              "query": "Perf\r\n| where TimeGenerated > ago({IoTimeRange})\r\n| where ObjectName == \"PhysicalDisk\" and InstanceName == \"_Total\"\r\n| where CounterName in (\"Avg. Disk sec/Read\", \"Avg. Disk sec/Write\", \"Disk Reads/sec\", \"Disk Writes/sec\")\r\n| summarize \r\n    AvgReadLatencyMs = round(avgif(CounterValue * 1000, CounterName == \"Avg. Disk sec/Read\"), 2),\r\n    AvgWriteLatencyMs = round(avgif(CounterValue * 1000, CounterName == \"Avg. Disk sec/Write\"), 2),\r\n    MaxReadLatencyMs = round(maxif(CounterValue * 1000, CounterName == \"Avg. Disk sec/Read\"), 2),\r\n    MaxWriteLatencyMs = round(maxif(CounterValue * 1000, CounterName == \"Avg. Disk sec/Write\"), 2),\r\n    AvgReadIOPS = round(avgif(CounterValue, CounterName == \"Disk Reads/sec\"), 0),\r\n    AvgWriteIOPS = round(avgif(CounterValue, CounterName == \"Disk Writes/sec\"), 0)\r\n    by Computer\r\n| extend TotalIOPS = AvgReadIOPS + AvgWriteIOPS\r\n| order by MaxReadLatencyMs desc",
+              "size": 3,
+              "title": "I/O Summary — All Servers (click a row for details)",
+              "noDataMessage": "No disk performance data found. Ensure AMA is collecting PhysicalDisk counters.",
+              "exportFieldName": "Computer",
+              "exportParameterName": "SelectedIoMachine",
+              "showExportToExcel": true,
+              "queryType": 0,
+              "resourceType": "microsoft.operationalinsights/workspaces",
+              "crossComponentResources": [
+                "{IoWorkspace}"
+              ],
+              "gridSettings": {
+                "formatters": [
+                  {
+                    "columnMatch": "AvgReadLatencyMs",
+                    "formatter": 18,
+                    "formatOptions": {
+                      "thresholdsOptions": "icons",
+                      "thresholdsGrid": [
+                        {
+                          "operator": "<",
+                          "thresholdValue": "10",
+                          "representation": "success",
+                          "text": "{0}"
+                        },
+                        {
+                          "operator": "<",
+                          "thresholdValue": "20",
+                          "representation": "2",
+                          "text": "{0}"
+                        },
+                        {
+                          "operator": "Default",
+                          "thresholdValue": null,
+                          "representation": "3",
+                          "text": "{0}"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "columnMatch": "AvgWriteLatencyMs",
+                    "formatter": 18,
+                    "formatOptions": {
+                      "thresholdsOptions": "icons",
+                      "thresholdsGrid": [
+                        {
+                          "operator": "<",
+                          "thresholdValue": "10",
+                          "representation": "success",
+                          "text": "{0}"
+                        },
+                        {
+                          "operator": "<",
+                          "thresholdValue": "20",
+                          "representation": "2",
+                          "text": "{0}"
+                        },
+                        {
+                          "operator": "Default",
+                          "thresholdValue": null,
+                          "representation": "3",
+                          "text": "{0}"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "columnMatch": "MaxReadLatencyMs",
+                    "formatter": 18,
+                    "formatOptions": {
+                      "thresholdsOptions": "icons",
+                      "thresholdsGrid": [
+                        {
+                          "operator": "<",
+                          "thresholdValue": "20",
+                          "representation": "success",
+                          "text": "{0}"
+                        },
+                        {
+                          "operator": "<",
+                          "thresholdValue": "50",
+                          "representation": "2",
+                          "text": "{0}"
+                        },
+                        {
+                          "operator": "Default",
+                          "thresholdValue": null,
+                          "representation": "3",
+                          "text": "{0}"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "columnMatch": "MaxWriteLatencyMs",
+                    "formatter": 18,
+                    "formatOptions": {
+                      "thresholdsOptions": "icons",
+                      "thresholdsGrid": [
+                        {
+                          "operator": "<",
+                          "thresholdValue": "20",
+                          "representation": "success",
+                          "text": "{0}"
+                        },
+                        {
+                          "operator": "<",
+                          "thresholdValue": "50",
+                          "representation": "2",
+                          "text": "{0}"
+                        },
+                        {
+                          "operator": "Default",
+                          "thresholdValue": null,
+                          "representation": "3",
+                          "text": "{0}"
+                        }
+                      ]
+                    }
+                  }
+                ],
+                "filter": true,
+                "labelSettings": [
+                  {
+                    "columnId": "Computer",
+                    "label": "Server"
+                  },
+                  {
+                    "columnId": "AvgReadLatencyMs",
+                    "label": "Avg Read (ms)"
+                  },
+                  {
+                    "columnId": "AvgWriteLatencyMs",
+                    "label": "Avg Write (ms)"
+                  },
+                  {
+                    "columnId": "MaxReadLatencyMs",
+                    "label": "Max Read (ms)"
+                  },
+                  {
+                    "columnId": "MaxWriteLatencyMs",
+                    "label": "Max Write (ms)"
+                  },
+                  {
+                    "columnId": "AvgReadIOPS",
+                    "label": "Avg Read IOPS"
+                  },
+                  {
+                    "columnId": "AvgWriteIOPS",
+                    "label": "Avg Write IOPS"
+                  },
+                  {
+                    "columnId": "TotalIOPS",
+                    "label": "Total IOPS"
+                  }
+                ]
+              }
+            },
+            "name": "query - io-summary"
+          },
+          {
+            "type": 3,
+            "content": {
+              "version": "KqlItem/1.0",
+              "query": "let grain = case('{IoTimeRange}' == '1h', time(1m), '{IoTimeRange}' == '6h', time(5m), '{IoTimeRange}' == '24h', time(5m), time(30m));\r\nPerf\r\n| where TimeGenerated > ago({IoTimeRange})\r\n| where ObjectName == \"PhysicalDisk\" and InstanceName == \"_Total\"\r\n| where CounterName in (\"Avg. Disk sec/Read\", \"Avg. Disk sec/Write\")\r\n| where Computer =~ \"{SelectedIoMachine}\"\r\n| extend LatencyMs = round(CounterValue * 1000, 2)\r\n| summarize AvgLatency = round(avg(LatencyMs), 2) by bin(TimeGenerated, grain), CounterName\r\n| project TimeGenerated, CounterName, AvgLatency\r\n| order by TimeGenerated asc",
+              "size": 0,
+              "title": "Disk Latency — {SelectedIoMachine}",
+              "noDataMessage": "Select a server from the summary table above.",
+              "queryType": 0,
+              "resourceType": "microsoft.operationalinsights/workspaces",
+              "crossComponentResources": [
+                "{IoWorkspace}"
+              ],
+              "visualization": "timechart",
+              "chartSettings": {
+                "ySettings": {
+                  "min": 0
+                },
+                "seriesLabelSettings": [
+                  {
+                    "seriesName": "Avg. Disk sec/Read",
+                    "label": "Read Latency (ms)",
+                    "color": "blue"
+                  },
+                  {
+                    "seriesName": "Avg. Disk sec/Write",
+                    "label": "Write Latency (ms)",
+                    "color": "orange"
+                  }
+                ]
+              }
+            },
+            "conditionalVisibility": {
+              "parameterName": "SelectedIoMachine",
+              "comparison": "isNotEqualTo",
+              "value": ""
+            },
+            "customWidth": "50",
+            "name": "query - disk-latency-chart"
+          },
+          {
+            "type": 3,
+            "content": {
+              "version": "KqlItem/1.0",
+              "query": "let grain = case('{IoTimeRange}' == '1h', time(1m), '{IoTimeRange}' == '6h', time(5m), '{IoTimeRange}' == '24h', time(5m), time(30m));\r\nPerf\r\n| where TimeGenerated > ago({IoTimeRange})\r\n| where ObjectName == \"PhysicalDisk\" and InstanceName == \"_Total\"\r\n| where CounterName in (\"Disk Reads/sec\", \"Disk Writes/sec\")\r\n| where Computer =~ \"{SelectedIoMachine}\"\r\n| summarize AvgIOPS = round(avg(CounterValue), 0) by bin(TimeGenerated, grain), CounterName\r\n| order by TimeGenerated asc",
+              "size": 0,
+              "title": "IOPS — {SelectedIoMachine}",
+              "noDataMessage": "Select a server from the summary table above.",
+              "queryType": 0,
+              "resourceType": "microsoft.operationalinsights/workspaces",
+              "crossComponentResources": [
+                "{IoWorkspace}"
+              ],
+              "visualization": "areachart",
+              "chartSettings": {
+                "ySettings": {
+                  "min": 0
+                },
+                "seriesLabelSettings": [
+                  {
+                    "seriesName": "Disk Reads/sec",
+                    "label": "Read IOPS",
+                    "color": "blue"
+                  },
+                  {
+                    "seriesName": "Disk Writes/sec",
+                    "label": "Write IOPS",
+                    "color": "orange"
+                  }
+                ]
+              }
+            },
+            "conditionalVisibility": {
+              "parameterName": "SelectedIoMachine",
+              "comparison": "isNotEqualTo",
+              "value": ""
+            },
+            "customWidth": "50",
+            "name": "query - iops-chart"
+          },
+          {
+            "type": 3,
+            "content": {
+              "version": "KqlItem/1.0",
+              "query": "let grain = case('{IoTimeRange}' == '1h', time(1m), '{IoTimeRange}' == '6h', time(5m), '{IoTimeRange}' == '24h', time(5m), time(30m));\r\nPerf\r\n| where TimeGenerated > ago({IoTimeRange})\r\n| where ObjectName == \"PhysicalDisk\" and InstanceName == \"_Total\"\r\n| where CounterName == \"Avg. Disk Queue Length\"\r\n| where Computer =~ \"{SelectedIoMachine}\"\r\n| summarize AvgQueueLen = round(avg(CounterValue), 2), MaxQueueLen = round(max(CounterValue), 2) by bin(TimeGenerated, grain)\r\n| order by TimeGenerated asc",
+              "size": 0,
+              "title": "Disk Queue Length — {SelectedIoMachine}",
+              "noDataMessage": "No queue length data. Ensure the 'Avg. Disk Queue Length' counter is collected.",
+              "queryType": 0,
+              "resourceType": "microsoft.operationalinsights/workspaces",
+              "crossComponentResources": [
+                "{IoWorkspace}"
+              ],
+              "visualization": "timechart",
+              "chartSettings": {
+                "ySettings": {
+                  "min": 0
+                },
+                "seriesLabelSettings": [
+                  {
+                    "seriesName": "AvgQueueLen",
+                    "label": "Avg Queue Length",
+                    "color": "blue"
+                  },
+                  {
+                    "seriesName": "MaxQueueLen",
+                    "label": "Max Queue Length",
+                    "color": "redBright"
+                  }
+                ]
+              }
+            },
+            "conditionalVisibility": {
+              "parameterName": "SelectedIoMachine",
+              "comparison": "isNotEqualTo",
+              "value": ""
+            },
+            "customWidth": "50",
+            "name": "query - queue-length-chart"
+          },
+          {
+            "type": 3,
+            "content": {
+              "version": "KqlItem/1.0",
+              "query": "let grain = case('{IoTimeRange}' == '1h', time(1m), '{IoTimeRange}' == '6h', time(5m), '{IoTimeRange}' == '24h', time(5m), time(30m));\r\nPerf\r\n| where TimeGenerated > ago({IoTimeRange})\r\n| where ObjectName == \"SQLServer:Buffer Manager\"\r\n| where CounterName in (\"Page reads/sec\", \"Page writes/sec\", \"Readahead pages/sec\")\r\n| where Computer =~ \"{SelectedIoMachine}\"\r\n| summarize AvgValue = round(avg(CounterValue), 1) by bin(TimeGenerated, grain), CounterName\r\n| order by TimeGenerated asc",
+              "size": 0,
+              "title": "SQL Server Buffer I/O — {SelectedIoMachine}",
+              "noDataMessage": "No SQL Server Buffer Manager data. Ensure SQL-specific counters are collected.",
+              "queryType": 0,
+              "resourceType": "microsoft.operationalinsights/workspaces",
+              "crossComponentResources": [
+                "{IoWorkspace}"
+              ],
+              "visualization": "timechart",
+              "chartSettings": {
+                "ySettings": {
+                  "min": 0
+                },
+                "seriesLabelSettings": [
+                  {
+                    "seriesName": "Page reads/sec",
+                    "label": "Page Reads/sec",
+                    "color": "blue"
+                  },
+                  {
+                    "seriesName": "Page writes/sec",
+                    "label": "Page Writes/sec",
+                    "color": "orange"
+                  },
+                  {
+                    "seriesName": "Readahead pages/sec",
+                    "label": "Readahead Pages/sec",
+                    "color": "green"
+                  }
+                ]
+              }
+            },
+            "conditionalVisibility": {
+              "parameterName": "SelectedIoMachine",
+              "comparison": "isNotEqualTo",
+              "value": ""
+            },
+            "customWidth": "50",
+            "name": "query - sql-buffer-io-chart"
+          },
+          {
+            "type": 1,
+            "content": {
+              "json": "---\r\n## Storage Best Practice Recommendations"
+            },
+            "name": "text - storage-bp-header"
+          },
+          {
+            "type": 3,
+            "content": {
+              "version": "KqlItem/1.0",
+              "query": "SqlAssessment_CL\r\n| extend asmt = parse_csv(RawData), resourceGroup = tostring(split(_ResourceId, \"/\", 4)[0])\r\n| where ('*' in ({ResourceGroup}) or resourceGroup in ({ResourceGroup}))\r\n| extend\r\n    AsmtId = tostring(asmt[1]),\r\n    CheckId = tostring(asmt[2]),\r\n    DisplayString = tostring(asmt[3]),\r\n    Description = tostring(asmt[4]),\r\n    HelpLink = tostring(asmt[5]),\r\n    TargetType = case(asmt[6] == 1, \"Server\", asmt[6] == 2, \"Database\", \"\"),\r\n    TargetName = tostring(asmt[7]),\r\n    Severity = case(asmt[8] == 30, \"High\", asmt[8] == 20, \"Medium\", asmt[8] == 10, \"Low\", asmt[8] == 0, \"Information\", \"Passed\"),\r\n    Message = tostring(asmt[9]),\r\n    Tags = tostring(asmt[10]),\r\n    Sev = toint(asmt[8])\r\n| where isnotempty(AsmtId)\r\n| join kind=inner (\r\n    SqlAssessment_CL\r\n    | extend asmt = parse_csv(RawData)\r\n    | extend AsmtId = tostring(asmt[1])\r\n    | where isnotempty(AsmtId)\r\n    | summarize arg_max(TimeGenerated, *) by _ResourceId\r\n    | project AsmtId\r\n) on AsmtId\r\n| where Sev >= 0\r\n| where Message has_any ('disk', 'storage', 'tempdb', 'file', 'volume', 'drive', 'I/O', 'IOPS', 'latency', 'throughput', 'data file', 'log file', 'filegroup', 'autogrow', 'initial size', 'instant file', 'trace flag 1117', 'trace flag 1118')\r\n    or Tags has_any ('IO', 'Storage', 'DiskConfiguration', 'TempDb')\r\n    or CheckId has_any ('TempDbFileCount', 'TempDbDataFileSize', 'TF1117', 'TF1118', 'DataLogSameVolume', 'TempDbOnOsDrive')\r\n| project Computer = tostring(split(_ResourceId, \"/\")[-1]), Severity, Sev, TargetType, TargetName, CheckId, Message, HelpLink\r\n| distinct *\r\n| order by Sev desc, Computer asc",
+              "size": 3,
+              "title": "BPA Storage & I/O Findings",
+              "noDataMessage": "No storage-related BPA findings. Run a BPA assessment to populate results.",
+              "showExportToExcel": true,
+              "queryType": 0,
+              "resourceType": "microsoft.operationalinsights/workspaces",
+              "crossComponentResources": [
+                "{IoWorkspace}"
+              ],
+              "gridSettings": {
+                "formatters": [
+                  {
+                    "columnMatch": "Severity",
+                    "formatter": 18,
+                    "formatOptions": {
+                      "thresholdsOptions": "icons",
+                      "thresholdsGrid": [
+                        {
+                          "operator": "==",
+                          "thresholdValue": "High",
+                          "representation": "4",
+                          "text": "{0}"
+                        },
+                        {
+                          "operator": "==",
+                          "thresholdValue": "Medium",
+                          "representation": "2",
+                          "text": "{0}"
+                        },
+                        {
+                          "operator": "==",
+                          "thresholdValue": "Low",
+                          "representation": "success",
+                          "text": "{0}"
+                        },
+                        {
+                          "operator": "Default",
+                          "thresholdValue": null,
+                          "representation": "unknown",
+                          "text": "{0}"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "columnMatch": "Sev",
+                    "formatter": 5
+                  },
+                  {
+                    "columnMatch": "HelpLink",
+                    "formatter": 7,
+                    "formatOptions": {
+                      "linkTarget": "Url",
+                      "linkLabel": "Docs"
+                    }
+                  }
+                ],
+                "filter": true,
+                "labelSettings": [
+                  {
+                    "columnId": "Computer",
+                    "label": "Server"
+                  },
+                  {
+                    "columnId": "Severity",
+                    "label": "Severity"
+                  },
+                  {
+                    "columnId": "TargetType",
+                    "label": "Target"
+                  },
+                  {
+                    "columnId": "TargetName",
+                    "label": "Target Name"
+                  },
+                  {
+                    "columnId": "CheckId",
+                    "label": "Check ID"
+                  },
+                  {
+                    "columnId": "Message",
+                    "label": "Finding"
+                  },
+                  {
+                    "columnId": "HelpLink",
+                    "label": "Help"
+                  }
+                ]
+              }
+            },
+            "name": "query - bpa-storage-findings"
+          },
+          {
+            "type": 1,
+            "content": {
+              "json": "---\r\n## Azure SQL VM Storage Best Practices\r\n\r\n| Recommendation | Why | Impact |\r\n|---|---|---|\r\n| **Separate data, log, and tempdb onto different disks** | Prevents I/O contention between read-heavy data, sequential log writes, and tempdb | High |\r\n| **Use Premium SSD or Ultra Disk for production** | Guaranteed IOPS/throughput with low latency (<1ms for Ultra) | High |\r\n| **Enable ReadOnly caching on data disks** | Serves repeated reads from host cache, reducing disk I/O | High |\r\n| **No caching on transaction log disks** | Log writes are sequential and don't benefit from caching | Medium |\r\n| **Use disk striping (Storage Spaces) for IOPS aggregation** | Combines IOPS/throughput of multiple disks | High |\r\n| **Set 64KB NTFS allocation unit size** | Matches SQL Server extent size for optimal I/O alignment | Medium |\r\n| **Enable instant file initialization** | Eliminates zero-fill on data file growth, reducing wait times | Medium |\r\n| **Right-size VM for expected IOPS** | VM size caps max cached/uncached IOPS regardless of disk config | High |\r\n| **Monitor disk queue length** | Queue >2 per disk sustained indicates I/O bottleneck | Medium |\r\n| **Disk latency <10ms for OLTP workloads** | Higher latency degrades query performance | High |\r\n\r\n> **Reference:** [Azure SQL VM Storage Configuration Best Practices](https://learn.microsoft.com/azure/azure-sql/virtual-machines/windows/performance-guidelines-best-practices-storage)"
+            },
+            "name": "text - storage-guidance"
+          }
+        ]
+      },
+      "conditionalVisibility": {
+        "parameterName": "selMainTab",
+        "comparison": "isEqualTo",
+        "value": "StorageIO"
+      },
+      "name": "group - Storage IO"
+    },
+    {
+      "type": 12,
+      "content": {
+        "version": "NotebookGroup/1.0",
+        "groupType": "editable",
+        "items": [
+          {
+            "type": 1,
+            "content": {
+              "json": "# Migration Assessment\nMigration readiness, right-sized SKU recommendations, and monthly cost estimates from uploaded SQL Server migration assessments. Targets include **Azure SQL Managed Instance**, **Azure SQL Database**, and **SQL Server on Azure VM**.\n\n> The grids read Azure Resource Graph under `microsoft.azurearcdata/sqlserverinstances` (`properties.migration.assessment`). **Select a server row** for available cost, settings, SKU, and assessment-issue detail. Unified inventory and BPA runs do not establish migration readiness. Native Azure SQL VM Modernization Advisor results are not read by these grids; no documented public results feed has been verified for workbook integration. For non-Arc SQL instances, use [SSMS 22+ migration assessment](https://learn.microsoft.com/ssms/migrate/migrate-sql-server-azure-sql) to generate a readiness report comparing SQL Database, Managed Instance, and SQL VM targets. That report is not ingested by this workbook."
             },
             "name": "text - migration-header"
           },
@@ -1595,6 +2443,42 @@
               "json": "## Migration Readiness Overview"
             },
             "name": "text - mig-rollup-header"
+          },
+          {
+            "type": 9,
+            "content": {
+              "version": "KqlParameterItem/1.0",
+              "parameters": [
+                {
+                  "id": "ef8c45ce-011c-43cf-ab0b-ea955719531c",
+                  "version": "KqlParameterItem/1.0",
+                  "name": "fMI",
+                  "type": 1,
+                  "isHiddenWhenLocked": true,
+                  "value": "All"
+                },
+                {
+                  "id": "3a54c3bb-c575-48c6-bc87-401c6628b432",
+                  "version": "KqlParameterItem/1.0",
+                  "name": "fDB",
+                  "type": 1,
+                  "isHiddenWhenLocked": true,
+                  "value": "All"
+                },
+                {
+                  "id": "cfbf0abf-e9b1-48cb-b8cb-a12d42a7f539",
+                  "version": "KqlParameterItem/1.0",
+                  "name": "fVM",
+                  "type": 1,
+                  "isHiddenWhenLocked": true,
+                  "value": "All"
+                }
+              ],
+              "style": "pills",
+              "queryType": 1,
+              "resourceType": "microsoft.resourcegraph/resources"
+            },
+            "name": "mig-readiness-filter-defaults"
           },
           {
             "type": 3,
@@ -1634,7 +2518,8 @@
                 {
                   "fieldName": "Readiness",
                   "parameterName": "fDB",
-                  "parameterType": 1
+                  "parameterType": 1,
+                  "defaultValue": "All"
                 }
               ]
             },
@@ -1679,7 +2564,8 @@
                 {
                   "fieldName": "Readiness",
                   "parameterName": "fMI",
-                  "parameterType": 1
+                  "parameterType": 1,
+                  "defaultValue": "All"
                 }
               ]
             },
@@ -1724,7 +2610,8 @@
                 {
                   "fieldName": "Readiness",
                   "parameterName": "fVM",
-                  "parameterType": 1
+                  "parameterType": 1,
+                  "defaultValue": "All"
                 }
               ]
             },
@@ -1735,7 +2622,7 @@
             "type": 3,
             "content": {
               "version": "KqlItem/1.0",
-              "query": "resources\n| where type == \"microsoft.azurearcdata/sqlserverinstances\"\n    and ('*' in ({ResourceGroup}) or resourceGroup in ({ResourceGroup}))\n| extend m = properties.migration.assessment\n| where isnotnull(m)\n| extend\n    mi = tostring(m.skuRecommendationResults.azureSqlManagedInstance.recommendationStatus),\n    db = tostring(m.skuRecommendationResults.azureSqlDatabase.recommendationStatus),\n    vm = tostring(m.skuRecommendationResults.azureSqlVirtualMachine.recommendationStatus)\n| extend\n    mi_bucket = case(mi =~ \"Ready\", \"Ready\", mi =~ \"ConditionallyReady\", \"Conditionally Ready\", mi =~ \"NotReady\", \"Not Ready\", \"Unknown\"),\n    db_bucket = case(db =~ \"Ready\", \"Ready\", db =~ \"ConditionallyReady\", \"Conditionally Ready\", db =~ \"NotReady\", \"Not Ready\", \"Unknown\"),\n    vm_bucket = case(vm =~ \"Ready\", \"Ready\", vm =~ \"ConditionallyReady\", \"Conditionally Ready\", vm =~ \"NotReady\", \"Not Ready\", \"Unknown\")\n| where (isempty(\"{fMI}\") or mi_bucket == \"{fMI}\")\n| where (isempty(\"{fDB}\") or db_bucket == \"{fDB}\")\n| where (isempty(\"{fVM}\") or vm_bucket == \"{fVM}\")\n| summarize\n    MI_Ready = countif(mi =~ \"Ready\"), MI_Cond = countif(mi =~ \"ConditionallyReady\"), MI_Not = countif(mi =~ \"NotReady\"),\n    DB_Ready = countif(db =~ \"Ready\"), DB_Cond = countif(db =~ \"ConditionallyReady\"), DB_Not = countif(db =~ \"NotReady\"),\n    VM_Ready = countif(vm =~ \"Ready\"), VM_Cond = countif(vm =~ \"ConditionallyReady\"), VM_Not = countif(vm =~ \"NotReady\")\n| project\n    Target = pack_array(\"Azure SQL MI\", \"Azure SQL DB\", \"SQL Server on VM\"),\n    Ready = pack_array(MI_Ready, DB_Ready, VM_Ready),\n    [\"Conditionally Ready\"] = pack_array(MI_Cond, DB_Cond, VM_Cond),\n    [\"Not Ready\"] = pack_array(MI_Not, DB_Not, VM_Not)\n| mv-expand Target to typeof(string), Ready to typeof(long), [\"Conditionally Ready\"] to typeof(long), [\"Not Ready\"] to typeof(long)",
+              "query": "resources\n| where type == \"microsoft.azurearcdata/sqlserverinstances\"\n    and ('*' in ({ResourceGroup}) or resourceGroup in ({ResourceGroup}))\n| extend m = properties.migration.assessment\n| where isnotnull(m)\n| extend\n    mi = tostring(m.skuRecommendationResults.azureSqlManagedInstance.recommendationStatus),\n    db = tostring(m.skuRecommendationResults.azureSqlDatabase.recommendationStatus),\n    vm = tostring(m.skuRecommendationResults.azureSqlVirtualMachine.recommendationStatus)\n| extend\n    mi_bucket = case(mi =~ \"Ready\", \"Ready\", mi =~ \"ConditionallyReady\", \"Conditionally Ready\", mi =~ \"NotReady\", \"Not Ready\", \"Unknown\"),\n    db_bucket = case(db =~ \"Ready\", \"Ready\", db =~ \"ConditionallyReady\", \"Conditionally Ready\", db =~ \"NotReady\", \"Not Ready\", \"Unknown\"),\n    vm_bucket = case(vm =~ \"Ready\", \"Ready\", vm =~ \"ConditionallyReady\", \"Conditionally Ready\", vm =~ \"NotReady\", \"Not Ready\", \"Unknown\")\n| where (\"{fMI}\" == \"All\" or isempty(\"{fMI}\") or mi_bucket == \"{fMI}\")\n| where (\"{fDB}\" == \"All\" or isempty(\"{fDB}\") or db_bucket == \"{fDB}\")\n| where (\"{fVM}\" == \"All\" or isempty(\"{fVM}\") or vm_bucket == \"{fVM}\")\n| summarize\n    MI_Ready = countif(mi =~ \"Ready\"), MI_Cond = countif(mi =~ \"ConditionallyReady\"), MI_Not = countif(mi =~ \"NotReady\"),\n    DB_Ready = countif(db =~ \"Ready\"), DB_Cond = countif(db =~ \"ConditionallyReady\"), DB_Not = countif(db =~ \"NotReady\"),\n    VM_Ready = countif(vm =~ \"Ready\"), VM_Cond = countif(vm =~ \"ConditionallyReady\"), VM_Not = countif(vm =~ \"NotReady\")\n| project\n    Target = pack_array(\"Azure SQL MI\", \"Azure SQL DB\", \"SQL Server on VM\"),\n    Ready = pack_array(MI_Ready, DB_Ready, VM_Ready),\n    [\"Conditionally Ready\"] = pack_array(MI_Cond, DB_Cond, VM_Cond),\n    [\"Not Ready\"] = pack_array(MI_Not, DB_Not, VM_Not)\n| mv-expand Target to typeof(string), Ready to typeof(long), [\"Conditionally Ready\"] to typeof(long), [\"Not Ready\"] to typeof(long)",
               "size": 3,
               "title": "Readiness Comparison Across Targets",
               "noDataMessage": "No assessment data available.",
@@ -1774,7 +2661,7 @@
             "type": 3,
             "content": {
               "version": "KqlItem/1.0",
-              "query": "resources\n| where type == \"microsoft.azurearcdata/sqlserverinstances\"\n    and ('*' in ({ResourceGroup}) or resourceGroup in ({ResourceGroup}))\n| extend m = properties.migration.assessment\n| where isnotnull(m)\n| extend\n    serverName = name,\n    sqlVersion = tostring(properties.version),\n    edition = tostring(properties.edition),\n    vCores = tostring(properties.vCore),\n    licenseType = tostring(properties.licenseType),\n    strategy = tostring(m.settings.strategy),\n    assessmentTime = todatetime(m.assessmentUploadTime),\n    mi_status = tostring(m.skuRecommendationResults.azureSqlManagedInstance.recommendationStatus),\n    mi_totalCost = todouble(m.skuRecommendationResults.azureSqlManagedInstance.monthlyCost.totalCost),\n    mi_blockers = toint(m.skuRecommendationResults.azureSqlManagedInstance.numberOfServerBlockerIssues),\n    db_status = tostring(m.skuRecommendationResults.azureSqlDatabase.recommendationStatus),\n    db_totalCost = todouble(m.skuRecommendationResults.azureSqlDatabase.monthlyCost.totalCost),\n    db_blockers = toint(m.skuRecommendationResults.azureSqlDatabase.numberOfServerBlockerIssues),\n    vm_status = tostring(m.skuRecommendationResults.azureSqlVirtualMachine.recommendationStatus),\n    vm_totalCost = iff(isnull(m.skuRecommendationResults.azureSqlVirtualMachine.monthlyCost.totalCost), real(null), coalesce(todouble(m.skuRecommendationResults.azureSqlVirtualMachine.monthlyCost.computeCost), 0.0) + coalesce(todouble(m.skuRecommendationResults.azureSqlVirtualMachine.monthlyCost.storageCost), 0.0) + coalesce(todouble(m.skuRecommendationResults.azureSqlVirtualMachine.monthlyCost.iopsCost), 0.0) + coalesce(todouble(m.skuRecommendationResults.azureSqlVirtualMachine.monthlyCost.sqlLicenseCost), 0.0) + coalesce(todouble(m.skuRecommendationResults.azureSqlVirtualMachine.monthlyCost.windowsLicenseCost), 0.0)),\n    vm_blockers = toint(m.skuRecommendationResults.azureSqlVirtualMachine.numberOfServerBlockerIssues)\n| extend\n    mi_bucket = case(mi_status =~ \"Ready\", \"Ready\", mi_status =~ \"ConditionallyReady\", \"Conditionally Ready\", mi_status =~ \"NotReady\", \"Not Ready\", \"Unknown\"),\n    db_bucket = case(db_status =~ \"Ready\", \"Ready\", db_status =~ \"ConditionallyReady\", \"Conditionally Ready\", db_status =~ \"NotReady\", \"Not Ready\", \"Unknown\"),\n    vm_bucket = case(vm_status =~ \"Ready\", \"Ready\", vm_status =~ \"ConditionallyReady\", \"Conditionally Ready\", vm_status =~ \"NotReady\", \"Not Ready\", \"Unknown\")\n| where (isempty(\"{fMI}\") or mi_bucket == \"{fMI}\")\n| where (isempty(\"{fDB}\") or db_bucket == \"{fDB}\")\n| where (isempty(\"{fVM}\") or vm_bucket == \"{fVM}\")\n| project id, serverName, resourceGroup, sqlVersion, edition, vCores, licenseType, strategy,\n    mi_status, mi_totalCost, mi_blockers,\n    db_status, db_totalCost, db_blockers,\n    vm_status, vm_totalCost, vm_blockers,\n    assessmentTime\n| order by serverName asc",
+              "query": "resources\n| where type == \"microsoft.azurearcdata/sqlserverinstances\"\n    and ('*' in ({ResourceGroup}) or resourceGroup in ({ResourceGroup}))\n| extend m = properties.migration.assessment\n| where isnotnull(m)\n| extend\n    serverName = name,\n    sqlVersion = tostring(properties.version),\n    edition = tostring(properties.edition),\n    vCores = tostring(properties.vCore),\n    licenseType = tostring(properties.licenseType),\n    strategy = tostring(m.settings.strategy),\n    assessmentTime = todatetime(m.assessmentUploadTime),\n    mi_status = tostring(m.skuRecommendationResults.azureSqlManagedInstance.recommendationStatus),\n    mi_totalCost = todouble(m.skuRecommendationResults.azureSqlManagedInstance.monthlyCost.totalCost),\n    mi_blockers = toint(m.skuRecommendationResults.azureSqlManagedInstance.numberOfServerBlockerIssues),\n    db_status = tostring(m.skuRecommendationResults.azureSqlDatabase.recommendationStatus),\n    db_totalCost = todouble(m.skuRecommendationResults.azureSqlDatabase.monthlyCost.totalCost),\n    db_blockers = toint(m.skuRecommendationResults.azureSqlDatabase.numberOfServerBlockerIssues),\n    vm_status = tostring(m.skuRecommendationResults.azureSqlVirtualMachine.recommendationStatus),\n    vm_totalCost = iff(isnull(m.skuRecommendationResults.azureSqlVirtualMachine.monthlyCost.totalCost), real(null), coalesce(todouble(m.skuRecommendationResults.azureSqlVirtualMachine.monthlyCost.computeCost), 0.0) + coalesce(todouble(m.skuRecommendationResults.azureSqlVirtualMachine.monthlyCost.storageCost), 0.0) + coalesce(todouble(m.skuRecommendationResults.azureSqlVirtualMachine.monthlyCost.iopsCost), 0.0) + coalesce(todouble(m.skuRecommendationResults.azureSqlVirtualMachine.monthlyCost.sqlLicenseCost), 0.0) + coalesce(todouble(m.skuRecommendationResults.azureSqlVirtualMachine.monthlyCost.windowsLicenseCost), 0.0)),\n    vm_blockers = toint(m.skuRecommendationResults.azureSqlVirtualMachine.numberOfServerBlockerIssues)\n| extend\n    mi_bucket = case(mi_status =~ \"Ready\", \"Ready\", mi_status =~ \"ConditionallyReady\", \"Conditionally Ready\", mi_status =~ \"NotReady\", \"Not Ready\", \"Unknown\"),\n    db_bucket = case(db_status =~ \"Ready\", \"Ready\", db_status =~ \"ConditionallyReady\", \"Conditionally Ready\", db_status =~ \"NotReady\", \"Not Ready\", \"Unknown\"),\n    vm_bucket = case(vm_status =~ \"Ready\", \"Ready\", vm_status =~ \"ConditionallyReady\", \"Conditionally Ready\", vm_status =~ \"NotReady\", \"Not Ready\", \"Unknown\")\n| where (\"{fMI}\" == \"All\" or isempty(\"{fMI}\") or mi_bucket == \"{fMI}\")\n| where (\"{fDB}\" == \"All\" or isempty(\"{fDB}\") or db_bucket == \"{fDB}\")\n| where (\"{fVM}\" == \"All\" or isempty(\"{fVM}\") or vm_bucket == \"{fVM}\")\n| project id, serverName, resourceGroup, sqlVersion, edition, vCores, licenseType, strategy,\n    mi_status, mi_totalCost, mi_blockers,\n    db_status, db_totalCost, db_blockers,\n    vm_status, vm_totalCost, vm_blockers,\n    assessmentTime\n| order by serverName asc",
               "size": 0,
               "title": "Migration Assessment by Server (select a row for detail)",
               "noDataMessage": "No migration assessment data found. Enable migration assessment on Arc-enabled SQL Server instances.",
@@ -3055,163 +3942,6 @@
               "value": ""
             },
             "name": "mig-detail-group"
-          },
-          {
-            "type": 1,
-            "content": {
-              "json": "## SQL Server on Azure VM (IaaS) Coverage\nMigration/modernization assessment is stored on `microsoft.azurearcdata/sqlserverinstances` under `properties.migration.assessment`. SQL Server on Azure VMs surface into that **same** resource type via **unified inventory (preview)** once the **SQL IaaS Agent extension** is version `2.0.226.0`+ (with a system-assigned managed identity, the `Microsoft.AzureArcData` provider registered, and outbound connectivity to the Arc Data Processing Service). The Arc grids above therefore already include assessed IaaS VMs automatically — no separate agent required.\n\nThis section lists **every** SQL Server on Azure VM (`microsoft.sqlvirtualmachine/sqlvirtualmachines`) and correlates each to its projected SQL Server instance resource. VMs with **No instance resource** have not yet met the unified-inventory prerequisites (update the SQL IaaS Agent extension); VMs that have an instance but **no assessment** just need an assessment run and uploaded."
-            },
-            "name": "text - iaas-coverage-header"
-          },
-          {
-            "type": 3,
-            "content": {
-              "version": "KqlItem/1.0",
-              "query": "resources\n| where type == \"microsoft.sqlvirtualmachine/sqlvirtualmachines\"\n    and ('*' in ({ResourceGroup}) or resourceGroup in ({ResourceGroup}))\n| extend vmId = toupper(tostring(properties.virtualMachineResourceId))\n| join kind=leftouter (\n    resources\n    | where type == \"microsoft.azurearcdata/sqlserverinstances\"\n    | extend hostId = toupper(tostring(properties.containerResourceId))\n    | extend hasAsmt = iff(isnotnull(properties.migration.assessment), 1, 0)\n    | summarize Assessed = sum(hasAsmt) by hostId\n) on $left.vmId == $right.hostId\n| extend Status = iff(coalesce(Assessed, 0) > 0, \"Assessment available\", \"No assessment yet\")\n| summarize Servers = count() by Status\n| order by Servers desc",
-              "size": 3,
-              "title": "IaaS SQL VM Assessment Coverage",
-              "noDataMessage": "No SQL Server on Azure VM (IaaS) resources found.",
-              "queryType": 1,
-              "resourceType": "microsoft.resourcegraph/resources",
-              "crossComponentResources": [
-                "{Subscription}"
-              ],
-              "visualization": "piechart",
-              "chartSettings": {
-                "seriesLabelSettings": [
-                  {
-                    "seriesName": "Assessment available",
-                    "color": "green"
-                  },
-                  {
-                    "seriesName": "No assessment yet",
-                    "color": "redBright"
-                  }
-                ]
-              }
-            },
-            "customWidth": "33",
-            "name": "query - iaas-coverage-tiles"
-          },
-          {
-            "type": 3,
-            "content": {
-              "version": "KqlItem/1.0",
-              "query": "resources\n| where type == \"microsoft.sqlvirtualmachine/sqlvirtualmachines\"\n    and ('*' in ({ResourceGroup}) or resourceGroup in ({ResourceGroup}))\n| extend vmId = toupper(tostring(properties.virtualMachineResourceId))\n| project SqlVmName = name, resourceGroup, vmId,\n    SqlImageOffer = tostring(properties.sqlImageOffer),\n    SqlImageSku = tostring(properties.sqlImageSku),\n    LicenseType = tostring(properties.sqlServerLicenseType),\n    VmResourceId = tostring(properties.virtualMachineResourceId)\n| join kind=leftouter (\n    resources\n    | where type == \"microsoft.azurearcdata/sqlserverinstances\"\n    | extend hostId = toupper(tostring(properties.containerResourceId))\n    | extend hasAsmt = iff(isnotnull(properties.migration.assessment), 1, 0)\n    | summarize ArcInstances = count(), Assessed = sum(hasAsmt), arg_max(hasAsmt, properties) by hostId\n    | extend m = properties.migration.assessment\n    | project hostId, ArcInstances, Assessed,\n        MI = tostring(m.skuRecommendationResults.azureSqlManagedInstance.recommendationStatus),\n        DB = tostring(m.skuRecommendationResults.azureSqlDatabase.recommendationStatus),\n        VM = tostring(m.skuRecommendationResults.azureSqlVirtualMachine.recommendationStatus),\n        AssessmentTime = todatetime(m.assessmentUploadTime)\n) on $left.vmId == $right.hostId\n| extend InstanceResource = iff(isnotempty(hostId), \"Yes\", \"No\")\n| extend Assessment = case(coalesce(Assessed, 0) > 0, \"Available\", InstanceResource == \"Yes\", \"Instance present, assessment pending\", \"No instance resource\")\n| project [\"SQL VM\"] = SqlVmName, [\"Resource Group\"] = resourceGroup, [\"SQL Image\"] = SqlImageOffer, Edition = SqlImageSku, License = LicenseType, [\"Instance Resource\"] = InstanceResource, Assessment, [\"MI Readiness\"] = MI, [\"DB Readiness\"] = DB, [\"SQL VM Readiness\"] = VM, [\"Last Assessment\"] = AssessmentTime, [\"VM Resource Id\"] = VmResourceId\n| order by [\"SQL VM\"] asc",
-              "size": 0,
-              "title": "SQL Server on Azure VM — Migration Assessment Coverage",
-              "noDataMessage": "No SQL Server on Azure VM (IaaS) resources found in the selected scope.",
-              "showExportToExcel": true,
-              "queryType": 1,
-              "resourceType": "microsoft.resourcegraph/resources",
-              "crossComponentResources": [
-                "{Subscription}"
-              ],
-              "visualization": "table",
-              "gridSettings": {
-                "filter": true,
-                "formatters": [
-                  {
-                    "columnMatch": "VM Resource Id",
-                    "formatter": 5
-                  },
-                  {
-                    "columnMatch": "Instance Resource",
-                    "formatter": 18,
-                    "formatOptions": {
-                      "thresholdsOptions": "icons",
-                      "thresholdsGrid": [
-                        {
-                          "operator": "==",
-                          "thresholdValue": "Yes",
-                          "representation": "success",
-                          "text": "{0}{1}"
-                        },
-                        {
-                          "operator": "Default",
-                          "thresholdValue": null,
-                          "representation": "4",
-                          "text": "{0}{1}"
-                        }
-                      ]
-                    }
-                  },
-                  {
-                    "columnMatch": "Assessment",
-                    "formatter": 18,
-                    "formatOptions": {
-                      "thresholdsOptions": "icons",
-                      "thresholdsGrid": [
-                        {
-                          "operator": "==",
-                          "thresholdValue": "Available",
-                          "representation": "success",
-                          "text": "{0}{1}"
-                        },
-                        {
-                          "operator": "==",
-                          "thresholdValue": "Instance present, assessment pending",
-                          "representation": "2",
-                          "text": "{0}{1}"
-                        },
-                        {
-                          "operator": "Default",
-                          "thresholdValue": null,
-                          "representation": "4",
-                          "text": "{0}{1}"
-                        }
-                      ]
-                    }
-                  },
-                  {
-                    "columnMatch": ".* Readiness",
-                    "formatter": 18,
-                    "formatOptions": {
-                      "thresholdsOptions": "icons",
-                      "thresholdsGrid": [
-                        {
-                          "operator": "==",
-                          "thresholdValue": "Ready",
-                          "representation": "success",
-                          "text": "{0}{1}"
-                        },
-                        {
-                          "operator": "==",
-                          "thresholdValue": "ConditionallyReady",
-                          "representation": "2",
-                          "text": "{0}{1}"
-                        },
-                        {
-                          "operator": "==",
-                          "thresholdValue": "NotReady",
-                          "representation": "4",
-                          "text": "{0}{1}"
-                        },
-                        {
-                          "operator": "Default",
-                          "thresholdValue": null,
-                          "representation": "unknown",
-                          "text": "{0}{1}"
-                        }
-                      ]
-                    }
-                  },
-                  {
-                    "columnMatch": "Last Assessment",
-                    "formatter": 6,
-                    "formatOptions": {
-                      "customColumnWidthSetting": "160px"
-                    },
-                    "dateFormat": {
-                      "showUtc": true,
-                      "formatName": "shortDateTimePattern"
-                    }
-                  }
-                ]
-              }
-            },
-            "customWidth": "67",
-            "name": "query - iaas-coverage-grid"
           }
         ]
       },
@@ -3221,6 +3951,475 @@
         "value": "MigrationAssessment"
       },
       "name": "group - Migration Assessment"
+    },
+    {
+      "type": 12,
+      "content": {
+        "version": "NotebookGroup/1.0",
+        "groupType": "editable",
+        "items": [
+          {
+            "type": 1,
+            "content": {
+              "json": "# Azure Advisor for SQL Hosts"
+            },
+            "name": "text - advisor-header"
+          },
+          {
+            "type": 9,
+            "content": {
+              "version": "KqlParameterItem/1.0",
+              "parameters": [
+                {
+                  "id": "39a83d13-7552-4719-9092-a3c77f8fe057",
+                  "version": "KqlParameterItem/1.0",
+                  "name": "AdvisorMachineId",
+                  "type": 1,
+                  "isHiddenWhenLocked": true,
+                  "value": "All"
+                }
+              ],
+              "style": "pills"
+            },
+            "name": "parameters - advisor-selection"
+          },
+          {
+            "type": 3,
+            "content": {
+              "version": "KqlItem/1.0",
+              "query": "resources\n| where type in~ ('microsoft.sqlvirtualmachine/sqlvirtualmachines', 'microsoft.azurearcdata/sqlserverinstances', 'microsoft.hybridcompute/machines')\n| where type !~ 'microsoft.hybridcompute/machines' or tostring(properties.detectedProperties.mssqldiscovered) =~ 'true'\n| extend MachineId = tolower(case(\n    type =~ 'microsoft.sqlvirtualmachine/sqlvirtualmachines', tostring(properties.virtualMachineResourceId),\n    type =~ 'microsoft.azurearcdata/sqlserverinstances', tostring(properties.containerResourceId), id))\n| where MachineId matches regex '^/subscriptions/[^/]+/resourcegroups/[^/]+/providers/microsoft[.](compute/virtualmachines|hybridcompute/machines)/[^/]+$'\n| extend Machine = tostring(split(MachineId, '/')[8]), MachineResourceGroup = tostring(split(MachineId, '/')[4]),\n    HostType = iff(MachineId contains '/microsoft.hybridcompute/machines/', 'Arc SQL host', 'Azure SQL VM')\n| where ('*' in ({ResourceGroup}) or MachineResourceGroup in~ ({ResourceGroup}))\n| extend Aliases = pack_array(MachineId, tolower(id))\n| mv-expand TargetId = Aliases to typeof(string)\n| summarize by MachineId, Machine, MachineResourceGroup, HostType, TargetId\n| join kind=leftouter (\n    advisorresources\n    | where type =~ 'microsoft.advisor/recommendations'\n    | extend AffectedResource = tolower(tostring(properties.resourceMetadata.resourceId))\n    | extend TargetId = extract('^(/subscriptions/[^/]+/resourcegroups/[^/]+/providers/microsoft[.](compute/virtualmachines|hybridcompute/machines|sqlvirtualmachine/sqlvirtualmachines|azurearcdata/sqlserverinstances)/[^/]+)', 1, AffectedResource)\n    | project TargetId, RecommendationId = tolower(id), AffectedResource,\n        Category = iff(tostring(properties.category) == 'HighAvailability', 'Reliability', tostring(properties.category)),\n        Impact = tostring(properties.impact), Problem = tostring(properties.shortDescription.problem),\n        Action = tostring(properties.shortDescription.solution),\n        State = tostring(properties.recommendationStatus), CustomerState = tostring(properties.customerState),\n        UpdatedAt = todatetime(properties.lastUpdated),\n        RecommendationTypeId = tostring(properties.recommendationTypeId)\n) on TargetId\n| summarize arg_max(coalesce(UpdatedAt, datetime(1900-01-01)), *) by MachineId, RecommendationId\n| summarize Recommendations = countif(isnotempty(RecommendationId)), HighImpact = countif(isnotempty(RecommendationId) and Impact =~ 'High') by MachineId\n| summarize ['SQL Hosts'] = count(), ['Hosts With Recommendations'] = countif(Recommendations > 0),\n    ['Hosts Without Returned Recommendations'] = countif(Recommendations == 0),\n    ['Total Recommendations'] = sum(Recommendations), ['High Impact Recommendations'] = sum(HighImpact)",
+              "size": 4,
+              "title": "SQL Host Estate: Advisor Totals",
+              "noDataMessage": "No matching data returned. Check selected subscriptions/resource groups, SQL inventory, and Advisor read permissions. No recommendations is not proof of a healthy machine.",
+              "queryType": 1,
+              "resourceType": "microsoft.resourcegraph/resources",
+              "crossComponentResources": [
+                "{Subscription}"
+              ],
+              "visualization": "table",
+              "showExportToExcel": true
+            },
+            "customWidth": "100",
+            "name": "query - advisor-totals"
+          },
+          {
+            "type": 3,
+            "content": {
+              "version": "KqlItem/1.0",
+              "query": "resources\n| where type in~ ('microsoft.sqlvirtualmachine/sqlvirtualmachines', 'microsoft.azurearcdata/sqlserverinstances', 'microsoft.hybridcompute/machines')\n| where type !~ 'microsoft.hybridcompute/machines' or tostring(properties.detectedProperties.mssqldiscovered) =~ 'true'\n| extend MachineId = tolower(case(\n    type =~ 'microsoft.sqlvirtualmachine/sqlvirtualmachines', tostring(properties.virtualMachineResourceId),\n    type =~ 'microsoft.azurearcdata/sqlserverinstances', tostring(properties.containerResourceId), id))\n| where MachineId matches regex '^/subscriptions/[^/]+/resourcegroups/[^/]+/providers/microsoft[.](compute/virtualmachines|hybridcompute/machines)/[^/]+$'\n| extend Machine = tostring(split(MachineId, '/')[8]), MachineResourceGroup = tostring(split(MachineId, '/')[4]),\n    HostType = iff(MachineId contains '/microsoft.hybridcompute/machines/', 'Arc SQL host', 'Azure SQL VM')\n| where ('*' in ({ResourceGroup}) or MachineResourceGroup in~ ({ResourceGroup}))\n| extend Aliases = pack_array(MachineId, tolower(id))\n| mv-expand TargetId = Aliases to typeof(string)\n| summarize by MachineId, Machine, MachineResourceGroup, HostType, TargetId\n| join kind=leftouter (\n    advisorresources\n    | where type =~ 'microsoft.advisor/recommendations'\n    | extend AffectedResource = tolower(tostring(properties.resourceMetadata.resourceId))\n    | extend TargetId = extract('^(/subscriptions/[^/]+/resourcegroups/[^/]+/providers/microsoft[.](compute/virtualmachines|hybridcompute/machines|sqlvirtualmachine/sqlvirtualmachines|azurearcdata/sqlserverinstances)/[^/]+)', 1, AffectedResource)\n    | project TargetId, RecommendationId = tolower(id), AffectedResource,\n        Category = iff(tostring(properties.category) == 'HighAvailability', 'Reliability', tostring(properties.category)),\n        Impact = tostring(properties.impact), Problem = tostring(properties.shortDescription.problem),\n        Action = tostring(properties.shortDescription.solution),\n        State = tostring(properties.recommendationStatus), CustomerState = tostring(properties.customerState),\n        UpdatedAt = todatetime(properties.lastUpdated),\n        RecommendationTypeId = tostring(properties.recommendationTypeId)\n) on TargetId\n| summarize arg_max(coalesce(UpdatedAt, datetime(1900-01-01)), *) by MachineId, RecommendationId\n| where isnotempty(RecommendationId)\n| summarize Recommendations = count() by Category\n| order by Recommendations desc",
+              "size": 3,
+              "title": "Recommendations by Category",
+              "noDataMessage": "No matching data returned. Check selected subscriptions/resource groups, SQL inventory, and Advisor read permissions. No recommendations is not proof of a healthy machine.",
+              "queryType": 1,
+              "resourceType": "microsoft.resourcegraph/resources",
+              "crossComponentResources": [
+                "{Subscription}"
+              ],
+              "visualization": "piechart",
+              "showExportToExcel": false
+            },
+            "customWidth": "33",
+            "name": "query - advisor-categories"
+          },
+          {
+            "type": 3,
+            "content": {
+              "version": "KqlItem/1.0",
+              "query": "resources\n| where type in~ ('microsoft.sqlvirtualmachine/sqlvirtualmachines', 'microsoft.azurearcdata/sqlserverinstances', 'microsoft.hybridcompute/machines')\n| where type !~ 'microsoft.hybridcompute/machines' or tostring(properties.detectedProperties.mssqldiscovered) =~ 'true'\n| extend MachineId = tolower(case(\n    type =~ 'microsoft.sqlvirtualmachine/sqlvirtualmachines', tostring(properties.virtualMachineResourceId),\n    type =~ 'microsoft.azurearcdata/sqlserverinstances', tostring(properties.containerResourceId), id))\n| where MachineId matches regex '^/subscriptions/[^/]+/resourcegroups/[^/]+/providers/microsoft[.](compute/virtualmachines|hybridcompute/machines)/[^/]+$'\n| extend Machine = tostring(split(MachineId, '/')[8]), MachineResourceGroup = tostring(split(MachineId, '/')[4]),\n    HostType = iff(MachineId contains '/microsoft.hybridcompute/machines/', 'Arc SQL host', 'Azure SQL VM')\n| where ('*' in ({ResourceGroup}) or MachineResourceGroup in~ ({ResourceGroup}))\n| extend Aliases = pack_array(MachineId, tolower(id))\n| mv-expand TargetId = Aliases to typeof(string)\n| summarize by MachineId, Machine, MachineResourceGroup, HostType, TargetId\n| join kind=leftouter (\n    advisorresources\n    | where type =~ 'microsoft.advisor/recommendations'\n    | extend AffectedResource = tolower(tostring(properties.resourceMetadata.resourceId))\n    | extend TargetId = extract('^(/subscriptions/[^/]+/resourcegroups/[^/]+/providers/microsoft[.](compute/virtualmachines|hybridcompute/machines|sqlvirtualmachine/sqlvirtualmachines|azurearcdata/sqlserverinstances)/[^/]+)', 1, AffectedResource)\n    | project TargetId, RecommendationId = tolower(id), AffectedResource,\n        Category = iff(tostring(properties.category) == 'HighAvailability', 'Reliability', tostring(properties.category)),\n        Impact = tostring(properties.impact), Problem = tostring(properties.shortDescription.problem),\n        Action = tostring(properties.shortDescription.solution),\n        State = tostring(properties.recommendationStatus), CustomerState = tostring(properties.customerState),\n        UpdatedAt = todatetime(properties.lastUpdated),\n        RecommendationTypeId = tostring(properties.recommendationTypeId)\n) on TargetId\n| summarize arg_max(coalesce(UpdatedAt, datetime(1900-01-01)), *) by MachineId, RecommendationId\n| where isnotempty(RecommendationId)\n| summarize Recommendations = count() by Impact\n| order by Recommendations desc",
+              "size": 3,
+              "title": "Recommendations by Impact",
+              "noDataMessage": "No matching data returned. Check selected subscriptions/resource groups, SQL inventory, and Advisor read permissions. No recommendations is not proof of a healthy machine.",
+              "queryType": 1,
+              "resourceType": "microsoft.resourcegraph/resources",
+              "crossComponentResources": [
+                "{Subscription}"
+              ],
+              "visualization": "piechart",
+              "showExportToExcel": false,
+              "chartSettings": {
+                "seriesLabelSettings": [
+                  {
+                    "seriesName": "High",
+                    "color": "redBright"
+                  },
+                  {
+                    "seriesName": "Medium",
+                    "color": "orange"
+                  },
+                  {
+                    "seriesName": "Low",
+                    "color": "blue"
+                  }
+                ]
+              }
+            },
+            "customWidth": "33",
+            "name": "query - advisor-impacts"
+          },
+          {
+            "type": 3,
+            "content": {
+              "version": "KqlItem/1.0",
+              "query": "resources\n| where type in~ ('microsoft.sqlvirtualmachine/sqlvirtualmachines', 'microsoft.azurearcdata/sqlserverinstances', 'microsoft.hybridcompute/machines')\n| where type !~ 'microsoft.hybridcompute/machines' or tostring(properties.detectedProperties.mssqldiscovered) =~ 'true'\n| extend MachineId = tolower(case(\n    type =~ 'microsoft.sqlvirtualmachine/sqlvirtualmachines', tostring(properties.virtualMachineResourceId),\n    type =~ 'microsoft.azurearcdata/sqlserverinstances', tostring(properties.containerResourceId), id))\n| where MachineId matches regex '^/subscriptions/[^/]+/resourcegroups/[^/]+/providers/microsoft[.](compute/virtualmachines|hybridcompute/machines)/[^/]+$'\n| extend Machine = tostring(split(MachineId, '/')[8]), MachineResourceGroup = tostring(split(MachineId, '/')[4]),\n    HostType = iff(MachineId contains '/microsoft.hybridcompute/machines/', 'Arc SQL host', 'Azure SQL VM')\n| where ('*' in ({ResourceGroup}) or MachineResourceGroup in~ ({ResourceGroup}))\n| extend Aliases = pack_array(MachineId, tolower(id))\n| mv-expand TargetId = Aliases to typeof(string)\n| summarize by MachineId, Machine, MachineResourceGroup, HostType, TargetId\n| join kind=leftouter (\n    advisorresources\n    | where type =~ 'microsoft.advisor/recommendations'\n    | extend AffectedResource = tolower(tostring(properties.resourceMetadata.resourceId))\n    | extend TargetId = extract('^(/subscriptions/[^/]+/resourcegroups/[^/]+/providers/microsoft[.](compute/virtualmachines|hybridcompute/machines|sqlvirtualmachine/sqlvirtualmachines|azurearcdata/sqlserverinstances)/[^/]+)', 1, AffectedResource)\n    | project TargetId, RecommendationId = tolower(id), AffectedResource,\n        Category = iff(tostring(properties.category) == 'HighAvailability', 'Reliability', tostring(properties.category)),\n        Impact = tostring(properties.impact), Problem = tostring(properties.shortDescription.problem),\n        Action = tostring(properties.shortDescription.solution),\n        State = tostring(properties.recommendationStatus), CustomerState = tostring(properties.customerState),\n        UpdatedAt = todatetime(properties.lastUpdated),\n        RecommendationTypeId = tostring(properties.recommendationTypeId)\n) on TargetId\n| summarize arg_max(coalesce(UpdatedAt, datetime(1900-01-01)), *) by MachineId, RecommendationId\n| summarize Recommendations = countif(isnotempty(RecommendationId)) by MachineId\n| summarize Machines = count() by Coverage = iff(Recommendations > 0, 'Recommendations returned', 'No recommendations returned')",
+              "size": 3,
+              "title": "SQL Hosts With / Without Returned Recommendations",
+              "noDataMessage": "No matching data returned. Check selected subscriptions/resource groups, SQL inventory, and Advisor read permissions. No recommendations is not proof of a healthy machine.",
+              "queryType": 1,
+              "resourceType": "microsoft.resourcegraph/resources",
+              "crossComponentResources": [
+                "{Subscription}"
+              ],
+              "visualization": "piechart",
+              "showExportToExcel": false
+            },
+            "customWidth": "34",
+            "name": "query - advisor-coverage"
+          },
+          {
+            "type": 3,
+            "content": {
+              "version": "KqlItem/1.0",
+              "query": "resources\n| where type in~ ('microsoft.sqlvirtualmachine/sqlvirtualmachines', 'microsoft.azurearcdata/sqlserverinstances', 'microsoft.hybridcompute/machines')\n| where type !~ 'microsoft.hybridcompute/machines' or tostring(properties.detectedProperties.mssqldiscovered) =~ 'true'\n| extend MachineId = tolower(case(\n    type =~ 'microsoft.sqlvirtualmachine/sqlvirtualmachines', tostring(properties.virtualMachineResourceId),\n    type =~ 'microsoft.azurearcdata/sqlserverinstances', tostring(properties.containerResourceId), id))\n| where MachineId matches regex '^/subscriptions/[^/]+/resourcegroups/[^/]+/providers/microsoft[.](compute/virtualmachines|hybridcompute/machines)/[^/]+$'\n| extend Machine = tostring(split(MachineId, '/')[8]), MachineResourceGroup = tostring(split(MachineId, '/')[4]),\n    HostType = iff(MachineId contains '/microsoft.hybridcompute/machines/', 'Arc SQL host', 'Azure SQL VM')\n| where ('*' in ({ResourceGroup}) or MachineResourceGroup in~ ({ResourceGroup}))\n| extend Aliases = pack_array(MachineId, tolower(id))\n| mv-expand TargetId = Aliases to typeof(string)\n| summarize by MachineId, Machine, MachineResourceGroup, HostType, TargetId\n| join kind=leftouter (\n    advisorresources\n    | where type =~ 'microsoft.advisor/recommendations'\n    | extend AffectedResource = tolower(tostring(properties.resourceMetadata.resourceId))\n    | extend TargetId = extract('^(/subscriptions/[^/]+/resourcegroups/[^/]+/providers/microsoft[.](compute/virtualmachines|hybridcompute/machines|sqlvirtualmachine/sqlvirtualmachines|azurearcdata/sqlserverinstances)/[^/]+)', 1, AffectedResource)\n    | project TargetId, RecommendationId = tolower(id), AffectedResource,\n        Category = iff(tostring(properties.category) == 'HighAvailability', 'Reliability', tostring(properties.category)),\n        Impact = tostring(properties.impact), Problem = tostring(properties.shortDescription.problem),\n        Action = tostring(properties.shortDescription.solution),\n        State = tostring(properties.recommendationStatus), CustomerState = tostring(properties.customerState),\n        UpdatedAt = todatetime(properties.lastUpdated),\n        RecommendationTypeId = tostring(properties.recommendationTypeId)\n) on TargetId\n| summarize arg_max(coalesce(UpdatedAt, datetime(1900-01-01)), *) by MachineId, RecommendationId\n| summarize Recommendations = countif(isnotempty(RecommendationId)),\n    High = countif(isnotempty(RecommendationId) and Impact =~ 'High'),\n    Medium = countif(isnotempty(RecommendationId) and Impact =~ 'Medium'),\n    Low = countif(isnotempty(RecommendationId) and Impact =~ 'Low'),\n    Cost = countif(isnotempty(RecommendationId) and Category == 'Cost'),\n    Security = countif(isnotempty(RecommendationId) and Category == 'Security'),\n    Reliability = countif(isnotempty(RecommendationId) and Category == 'Reliability'),\n    Performance = countif(isnotempty(RecommendationId) and Category == 'Performance'),\n    OperationalExcellence = countif(isnotempty(RecommendationId) and Category == 'OperationalExcellence')\n    by MachineId, Machine, MachineResourceGroup, HostType\n| order by Recommendations desc, Machine asc",
+              "size": 3,
+              "title": "SQL Hosts: Select a Machine for Recommendation Details",
+              "noDataMessage": "No matching data returned. Check selected subscriptions/resource groups, SQL inventory, and Advisor read permissions. No recommendations is not proof of a healthy machine.",
+              "queryType": 1,
+              "resourceType": "microsoft.resourcegraph/resources",
+              "crossComponentResources": [
+                "{Subscription}"
+              ],
+              "visualization": "table",
+              "showExportToExcel": true,
+              "exportedParameters": [
+                {
+                  "fieldName": "MachineId",
+                  "parameterName": "AdvisorMachineId",
+                  "parameterType": 1,
+                  "defaultValue": "All"
+                }
+              ],
+              "gridSettings": {
+                "filter": true,
+                "formatters": [
+                  {
+                    "columnMatch": "MachineId",
+                    "formatter": 5
+                  }
+                ]
+              }
+            },
+            "customWidth": "100",
+            "name": "query - advisor-machines"
+          },
+          {
+            "type": 11,
+            "content": {
+              "version": "LinkItem/1.0",
+              "style": "links",
+              "links": [
+                {
+                  "id": "e0f89403-3d88-4bfc-a339-180d59768ae7",
+                  "cellValue": "AdvisorMachineId",
+                  "linkTarget": "parameter",
+                  "linkLabel": "Show recommendations for all SQL hosts",
+                  "subTarget": "All",
+                  "style": "link"
+                }
+              ]
+            },
+            "name": "links - advisor-reset"
+          },
+          {
+            "type": 3,
+            "content": {
+              "version": "KqlItem/1.0",
+              "query": "resources\n| where type in~ ('microsoft.sqlvirtualmachine/sqlvirtualmachines', 'microsoft.azurearcdata/sqlserverinstances', 'microsoft.hybridcompute/machines')\n| where type !~ 'microsoft.hybridcompute/machines' or tostring(properties.detectedProperties.mssqldiscovered) =~ 'true'\n| extend MachineId = tolower(case(\n    type =~ 'microsoft.sqlvirtualmachine/sqlvirtualmachines', tostring(properties.virtualMachineResourceId),\n    type =~ 'microsoft.azurearcdata/sqlserverinstances', tostring(properties.containerResourceId), id))\n| where MachineId matches regex '^/subscriptions/[^/]+/resourcegroups/[^/]+/providers/microsoft[.](compute/virtualmachines|hybridcompute/machines)/[^/]+$'\n| extend Machine = tostring(split(MachineId, '/')[8]), MachineResourceGroup = tostring(split(MachineId, '/')[4]),\n    HostType = iff(MachineId contains '/microsoft.hybridcompute/machines/', 'Arc SQL host', 'Azure SQL VM')\n| where ('*' in ({ResourceGroup}) or MachineResourceGroup in~ ({ResourceGroup}))\n| extend Aliases = pack_array(MachineId, tolower(id))\n| mv-expand TargetId = Aliases to typeof(string)\n| summarize by MachineId, Machine, MachineResourceGroup, HostType, TargetId\n| join kind=leftouter (\n    advisorresources\n    | where type =~ 'microsoft.advisor/recommendations'\n    | extend AffectedResource = tolower(tostring(properties.resourceMetadata.resourceId))\n    | extend TargetId = extract('^(/subscriptions/[^/]+/resourcegroups/[^/]+/providers/microsoft[.](compute/virtualmachines|hybridcompute/machines|sqlvirtualmachine/sqlvirtualmachines|azurearcdata/sqlserverinstances)/[^/]+)', 1, AffectedResource)\n    | project TargetId, RecommendationId = tolower(id), AffectedResource,\n        Category = iff(tostring(properties.category) == 'HighAvailability', 'Reliability', tostring(properties.category)),\n        Impact = tostring(properties.impact), Problem = tostring(properties.shortDescription.problem),\n        Action = tostring(properties.shortDescription.solution),\n        State = tostring(properties.recommendationStatus), CustomerState = tostring(properties.customerState),\n        UpdatedAt = todatetime(properties.lastUpdated),\n        RecommendationTypeId = tostring(properties.recommendationTypeId)\n) on TargetId\n| summarize arg_max(coalesce(UpdatedAt, datetime(1900-01-01)), *) by MachineId, RecommendationId\n| where isnotempty(RecommendationId)\n| where ('{AdvisorMachineId}' == 'All' or MachineId == '{AdvisorMachineId}')\n| project Machine, HostType, MachineResourceGroup, Category, Impact, Problem, Action, State, CustomerState,\n    UpdatedAt, AffectedResource, RecommendationTypeId, RecommendationId\n| order by Machine asc, Category asc, Impact asc, Problem asc",
+              "size": 3,
+              "title": "Advisor Recommendations: All Hosts or Selected Machine",
+              "noDataMessage": "No matching data returned. Check selected subscriptions/resource groups, SQL inventory, and Advisor read permissions. No recommendations is not proof of a healthy machine.",
+              "queryType": 1,
+              "resourceType": "microsoft.resourcegraph/resources",
+              "crossComponentResources": [
+                "{Subscription}"
+              ],
+              "visualization": "table",
+              "showExportToExcel": true,
+              "gridSettings": {
+                "filter": true,
+                "formatters": [
+                  {
+                    "columnMatch": "UpdatedAt",
+                    "formatter": 6,
+                    "dateFormat": {
+                      "showUtc": true,
+                      "formatName": "shortDateTimePattern"
+                    }
+                  },
+                  {
+                    "columnMatch": "RecommendationId",
+                    "formatter": 7,
+                    "formatOptions": {
+                      "linkTarget": "Resource",
+                      "linkLabel": "Open recommendation",
+                      "linkIsContextBlade": false
+                    }
+                  }
+                ]
+              }
+            },
+            "customWidth": "100",
+            "name": "query - advisor-details"
+          }
+        ]
+      },
+      "conditionalVisibility": {
+        "parameterName": "selMainTab",
+        "comparison": "isEqualTo",
+        "value": "AzureAdvisor"
+      },
+      "name": "group - Azure Advisor"
+    },
+    {
+      "type": 12,
+      "content": {
+        "version": "NotebookGroup/1.0",
+        "groupType": "editable",
+        "items": [
+          {
+            "type": 1,
+            "content": {
+              "json": "# Azure Updates for SQL Hosts"
+            },
+            "name": "text - updates-header"
+          },
+          {
+            "type": 9,
+            "content": {
+              "version": "KqlParameterItem/1.0",
+              "parameters": [
+                {
+                  "id": "366ac5ee-c7ba-4fdb-bf65-5dc8d9f63e6c",
+                  "version": "KqlParameterItem/1.0",
+                  "name": "UpdatesMachineId",
+                  "type": 1,
+                  "isHiddenWhenLocked": true,
+                  "value": "All"
+                }
+              ],
+              "style": "pills"
+            },
+            "name": "parameters - updates-selection"
+          },
+          {
+            "type": 3,
+            "content": {
+              "version": "KqlItem/1.0",
+              "query": "resources\n| where type in~ ('microsoft.sqlvirtualmachine/sqlvirtualmachines', 'microsoft.azurearcdata/sqlserverinstances', 'microsoft.hybridcompute/machines')\n| where type !~ 'microsoft.hybridcompute/machines' or tostring(properties.detectedProperties.mssqldiscovered) =~ 'true'\n| extend MachineId = tolower(case(\n    type =~ 'microsoft.sqlvirtualmachine/sqlvirtualmachines', tostring(properties.virtualMachineResourceId),\n    type =~ 'microsoft.azurearcdata/sqlserverinstances', tostring(properties.containerResourceId), id))\n| where MachineId matches regex '^/subscriptions/[^/]+/resourcegroups/[^/]+/providers/microsoft[.](compute/virtualmachines|hybridcompute/machines)/[^/]+$'\n| extend Machine = tostring(split(MachineId, '/')[8]), MachineResourceGroup = tostring(split(MachineId, '/')[4]),\n    HostType = iff(MachineId contains '/microsoft.hybridcompute/machines/', 'Arc SQL host', 'Azure SQL VM')\n| where ('*' in ({ResourceGroup}) or MachineResourceGroup in~ ({ResourceGroup}))\n| summarize by MachineId, Machine, MachineResourceGroup, HostType\n| join kind=leftouter (\n    patchassessmentresources\n    | where type in~ ('microsoft.compute/virtualmachines/patchassessmentresults', 'microsoft.hybridcompute/machines/patchassessmentresults',\n        'microsoft.compute/virtualmachines/patchassessmentresults/softwarepatches', 'microsoft.hybridcompute/machines/patchassessmentresults/softwarepatches')\n    | extend MachineId = tostring(split(tolower(id), '/patchassessmentresults/')[0]),\n        IsSummary = type endswith '/patchassessmentresults'\n    | summarize AssessmentRows = make_list_if(pack('Id', tolower(id), 'Properties', properties), IsSummary, 1048576),\n        PatchRows = make_list_if(pack('Id', tolower(id), 'Properties', properties), not(IsSummary), 1048576),\n        PatchRecordCount = countif(not(IsSummary)) by MachineId\n) on MachineId\n| extend PatchDetailsTruncated = coalesce(PatchRecordCount, 0) > coalesce(array_length(PatchRows), 0) or array_length(PatchRows) > 2000\n| extend AssessmentRows = iff(coalesce(array_length(AssessmentRows), 0) > 0, AssessmentRows, dynamic([null]))\n| mv-expand AssessmentRow = AssessmentRows limit 2000\n| extend AssessmentId = tostring(AssessmentRow.Id), AssessmentTime = todatetime(AssessmentRow.Properties.lastModifiedDateTime),\n    AssessmentStartedAt = todatetime(AssessmentRow.Properties.startDateTime),\n    AssessmentStatus = tostring(AssessmentRow.Properties.status), OS = tostring(AssessmentRow.Properties.osType),\n    RebootPending = tobool(AssessmentRow.Properties.rebootPending), AssessmentErrors = tostring(AssessmentRow.Properties.errorDetails),\n    ReportedClassificationCounts = tostring(AssessmentRow.Properties.availablePatchCountByClassification)\n| summarize arg_max(coalesce(AssessmentTime, datetime(1900-01-01)), *) by MachineId\n| extend AssessmentCoverage = case(isempty(AssessmentId), 'No assessment returned',\n    AssessmentStatus !~ 'Succeeded', 'Assessment not successful',\n    isnull(AssessmentTime), 'Assessment time unknown',\n    AssessmentTime < ago(24h), 'Stale (over 24 hours)', 'Fresh (within 24 hours)')\n| extend PatchRows = iff(coalesce(array_length(PatchRows), 0) > 0, PatchRows, dynamic([null]))\n| mv-expand PatchRow = PatchRows limit 2000\n| extend PatchResourceId = tostring(PatchRow.Id),\n    PatchAssessmentId = tostring(split(tostring(PatchRow.Id), '/softwarepatches/')[0]),\n    PatchUpdatedAt = todatetime(PatchRow.Properties.lastModifiedDateTime),\n    PatchName = tostring(PatchRow.Properties.patchName), KbId = tostring(PatchRow.Properties.kbId),\n    Version = tostring(PatchRow.Properties.version), Classifications = PatchRow.Properties.classifications,\n    Severity = tostring(PatchRow.Properties.msrcSeverity), RebootBehavior = tostring(PatchRow.Properties.rebootBehavior)\n| extend PrimaryClassification = case(Classifications has 'Critical', 'Critical',\n    Classifications has 'Security', 'Security',\n    isnotempty(tostring(Classifications[0])), tostring(Classifications[0]), 'Unclassified')\n| extend PatchValid = isnotempty(PatchResourceId) and AssessmentStatus =~ 'Succeeded'\n    and PatchAssessmentId == AssessmentId\n    and isnotnull(AssessmentStartedAt) and isnotnull(AssessmentTime) and isnotnull(PatchUpdatedAt)\n    and PatchUpdatedAt >= AssessmentStartedAt and PatchUpdatedAt <= AssessmentTime\n| summarize ReturnedMissingPatches = countif(PatchValid),\n    Security = countif(PatchValid and PrimaryClassification == 'Security'),\n    Critical = countif(PatchValid and PrimaryClassification == 'Critical')\n    by MachineId, Machine, MachineResourceGroup, HostType, OS, AssessmentCoverage,\n        AssessmentStatus, AssessmentTime, RebootPending, AssessmentErrors, ReportedClassificationCounts, PatchDetailsTruncated\n| summarize ['SQL Hosts'] = count(), ['Fresh Assessments'] = countif(AssessmentCoverage == 'Fresh (within 24 hours)'),\n    ['Stale Assessments'] = countif(AssessmentCoverage == 'Stale (over 24 hours)'),\n    ['No Assessment Returned'] = countif(AssessmentCoverage == 'No assessment returned'),\n    ['Other Assessment Problems'] = countif(AssessmentCoverage in ('Assessment not successful', 'Assessment time unknown')),\n    ['Returned Missing Patches'] = sum(ReturnedMissingPatches),\n    ['Security Patches'] = sum(Security), ['Critical Patches'] = sum(Critical),\n    ['Reboot Pending (reported)'] = countif(RebootPending == true),\n    ['Hosts With Truncated Details'] = countif(PatchDetailsTruncated == true)",
+              "size": 4,
+              "title": "SQL Host Estate: Latest Update Assessment Totals",
+              "noDataMessage": "No matching assessment/patch data returned. Check scope, Update Manager assessments, retention, and read permissions. No returned patches does not establish that a machine is fully patched.",
+              "queryType": 1,
+              "resourceType": "microsoft.resourcegraph/resources",
+              "crossComponentResources": [
+                "{Subscription}"
+              ],
+              "visualization": "table",
+              "showExportToExcel": true
+            },
+            "customWidth": "100",
+            "name": "query - updates-totals"
+          },
+          {
+            "type": 3,
+            "content": {
+              "version": "KqlItem/1.0",
+              "query": "resources\n| where type in~ ('microsoft.sqlvirtualmachine/sqlvirtualmachines', 'microsoft.azurearcdata/sqlserverinstances', 'microsoft.hybridcompute/machines')\n| where type !~ 'microsoft.hybridcompute/machines' or tostring(properties.detectedProperties.mssqldiscovered) =~ 'true'\n| extend MachineId = tolower(case(\n    type =~ 'microsoft.sqlvirtualmachine/sqlvirtualmachines', tostring(properties.virtualMachineResourceId),\n    type =~ 'microsoft.azurearcdata/sqlserverinstances', tostring(properties.containerResourceId), id))\n| where MachineId matches regex '^/subscriptions/[^/]+/resourcegroups/[^/]+/providers/microsoft[.](compute/virtualmachines|hybridcompute/machines)/[^/]+$'\n| extend Machine = tostring(split(MachineId, '/')[8]), MachineResourceGroup = tostring(split(MachineId, '/')[4]),\n    HostType = iff(MachineId contains '/microsoft.hybridcompute/machines/', 'Arc SQL host', 'Azure SQL VM')\n| where ('*' in ({ResourceGroup}) or MachineResourceGroup in~ ({ResourceGroup}))\n| summarize by MachineId, Machine, MachineResourceGroup, HostType\n| join kind=leftouter (\n    patchassessmentresources\n    | where type in~ ('microsoft.compute/virtualmachines/patchassessmentresults', 'microsoft.hybridcompute/machines/patchassessmentresults',\n        'microsoft.compute/virtualmachines/patchassessmentresults/softwarepatches', 'microsoft.hybridcompute/machines/patchassessmentresults/softwarepatches')\n    | extend MachineId = tostring(split(tolower(id), '/patchassessmentresults/')[0]),\n        IsSummary = type endswith '/patchassessmentresults'\n    | summarize AssessmentRows = make_list_if(pack('Id', tolower(id), 'Properties', properties), IsSummary, 1048576),\n        PatchRows = make_list_if(pack('Id', tolower(id), 'Properties', properties), not(IsSummary), 1048576),\n        PatchRecordCount = countif(not(IsSummary)) by MachineId\n) on MachineId\n| extend PatchDetailsTruncated = coalesce(PatchRecordCount, 0) > coalesce(array_length(PatchRows), 0) or array_length(PatchRows) > 2000\n| extend AssessmentRows = iff(coalesce(array_length(AssessmentRows), 0) > 0, AssessmentRows, dynamic([null]))\n| mv-expand AssessmentRow = AssessmentRows limit 2000\n| extend AssessmentId = tostring(AssessmentRow.Id), AssessmentTime = todatetime(AssessmentRow.Properties.lastModifiedDateTime),\n    AssessmentStartedAt = todatetime(AssessmentRow.Properties.startDateTime),\n    AssessmentStatus = tostring(AssessmentRow.Properties.status), OS = tostring(AssessmentRow.Properties.osType),\n    RebootPending = tobool(AssessmentRow.Properties.rebootPending), AssessmentErrors = tostring(AssessmentRow.Properties.errorDetails),\n    ReportedClassificationCounts = tostring(AssessmentRow.Properties.availablePatchCountByClassification)\n| summarize arg_max(coalesce(AssessmentTime, datetime(1900-01-01)), *) by MachineId\n| extend AssessmentCoverage = case(isempty(AssessmentId), 'No assessment returned',\n    AssessmentStatus !~ 'Succeeded', 'Assessment not successful',\n    isnull(AssessmentTime), 'Assessment time unknown',\n    AssessmentTime < ago(24h), 'Stale (over 24 hours)', 'Fresh (within 24 hours)')\n| extend PatchRows = iff(coalesce(array_length(PatchRows), 0) > 0, PatchRows, dynamic([null]))\n| mv-expand PatchRow = PatchRows limit 2000\n| extend PatchResourceId = tostring(PatchRow.Id),\n    PatchAssessmentId = tostring(split(tostring(PatchRow.Id), '/softwarepatches/')[0]),\n    PatchUpdatedAt = todatetime(PatchRow.Properties.lastModifiedDateTime),\n    PatchName = tostring(PatchRow.Properties.patchName), KbId = tostring(PatchRow.Properties.kbId),\n    Version = tostring(PatchRow.Properties.version), Classifications = PatchRow.Properties.classifications,\n    Severity = tostring(PatchRow.Properties.msrcSeverity), RebootBehavior = tostring(PatchRow.Properties.rebootBehavior)\n| extend PrimaryClassification = case(Classifications has 'Critical', 'Critical',\n    Classifications has 'Security', 'Security',\n    isnotempty(tostring(Classifications[0])), tostring(Classifications[0]), 'Unclassified')\n| extend PatchValid = isnotempty(PatchResourceId) and AssessmentStatus =~ 'Succeeded'\n    and PatchAssessmentId == AssessmentId\n    and isnotnull(AssessmentStartedAt) and isnotnull(AssessmentTime) and isnotnull(PatchUpdatedAt)\n    and PatchUpdatedAt >= AssessmentStartedAt and PatchUpdatedAt <= AssessmentTime\n| summarize ReturnedMissingPatches = countif(PatchValid),\n    Security = countif(PatchValid and PrimaryClassification == 'Security'),\n    Critical = countif(PatchValid and PrimaryClassification == 'Critical')\n    by MachineId, Machine, MachineResourceGroup, HostType, OS, AssessmentCoverage,\n        AssessmentStatus, AssessmentTime, RebootPending, AssessmentErrors, ReportedClassificationCounts, PatchDetailsTruncated\n| summarize Machines = count() by AssessmentCoverage",
+              "size": 0,
+              "title": "Assessment Coverage: All SQL Hosts",
+              "noDataMessage": "No matching assessment/patch data returned. Check scope, Update Manager assessments, retention, and read permissions. No returned patches does not establish that a machine is fully patched.",
+              "queryType": 1,
+              "resourceType": "microsoft.resourcegraph/resources",
+              "crossComponentResources": [
+                "{Subscription}"
+              ],
+              "visualization": "piechart",
+              "showExportToExcel": false
+            },
+            "customWidth": "33",
+            "name": "query - updates-coverage"
+          },
+          {
+            "type": 3,
+            "content": {
+              "version": "KqlItem/1.0",
+              "query": "resources\n| where type in~ ('microsoft.sqlvirtualmachine/sqlvirtualmachines', 'microsoft.azurearcdata/sqlserverinstances', 'microsoft.hybridcompute/machines')\n| where type !~ 'microsoft.hybridcompute/machines' or tostring(properties.detectedProperties.mssqldiscovered) =~ 'true'\n| extend MachineId = tolower(case(\n    type =~ 'microsoft.sqlvirtualmachine/sqlvirtualmachines', tostring(properties.virtualMachineResourceId),\n    type =~ 'microsoft.azurearcdata/sqlserverinstances', tostring(properties.containerResourceId), id))\n| where MachineId matches regex '^/subscriptions/[^/]+/resourcegroups/[^/]+/providers/microsoft[.](compute/virtualmachines|hybridcompute/machines)/[^/]+$'\n| extend Machine = tostring(split(MachineId, '/')[8]), MachineResourceGroup = tostring(split(MachineId, '/')[4]),\n    HostType = iff(MachineId contains '/microsoft.hybridcompute/machines/', 'Arc SQL host', 'Azure SQL VM')\n| where ('*' in ({ResourceGroup}) or MachineResourceGroup in~ ({ResourceGroup}))\n| summarize by MachineId, Machine, MachineResourceGroup, HostType\n| join kind=leftouter (\n    patchassessmentresources\n    | where type in~ ('microsoft.compute/virtualmachines/patchassessmentresults', 'microsoft.hybridcompute/machines/patchassessmentresults',\n        'microsoft.compute/virtualmachines/patchassessmentresults/softwarepatches', 'microsoft.hybridcompute/machines/patchassessmentresults/softwarepatches')\n    | extend MachineId = tostring(split(tolower(id), '/patchassessmentresults/')[0]),\n        IsSummary = type endswith '/patchassessmentresults'\n    | summarize AssessmentRows = make_list_if(pack('Id', tolower(id), 'Properties', properties), IsSummary, 1048576),\n        PatchRows = make_list_if(pack('Id', tolower(id), 'Properties', properties), not(IsSummary), 1048576),\n        PatchRecordCount = countif(not(IsSummary)) by MachineId\n) on MachineId\n| extend PatchDetailsTruncated = coalesce(PatchRecordCount, 0) > coalesce(array_length(PatchRows), 0) or array_length(PatchRows) > 2000\n| extend AssessmentRows = iff(coalesce(array_length(AssessmentRows), 0) > 0, AssessmentRows, dynamic([null]))\n| mv-expand AssessmentRow = AssessmentRows limit 2000\n| extend AssessmentId = tostring(AssessmentRow.Id), AssessmentTime = todatetime(AssessmentRow.Properties.lastModifiedDateTime),\n    AssessmentStartedAt = todatetime(AssessmentRow.Properties.startDateTime),\n    AssessmentStatus = tostring(AssessmentRow.Properties.status), OS = tostring(AssessmentRow.Properties.osType),\n    RebootPending = tobool(AssessmentRow.Properties.rebootPending), AssessmentErrors = tostring(AssessmentRow.Properties.errorDetails),\n    ReportedClassificationCounts = tostring(AssessmentRow.Properties.availablePatchCountByClassification)\n| summarize arg_max(coalesce(AssessmentTime, datetime(1900-01-01)), *) by MachineId\n| extend AssessmentCoverage = case(isempty(AssessmentId), 'No assessment returned',\n    AssessmentStatus !~ 'Succeeded', 'Assessment not successful',\n    isnull(AssessmentTime), 'Assessment time unknown',\n    AssessmentTime < ago(24h), 'Stale (over 24 hours)', 'Fresh (within 24 hours)')\n| extend PatchRows = iff(coalesce(array_length(PatchRows), 0) > 0, PatchRows, dynamic([null]))\n| mv-expand PatchRow = PatchRows limit 2000\n| extend PatchResourceId = tostring(PatchRow.Id),\n    PatchAssessmentId = tostring(split(tostring(PatchRow.Id), '/softwarepatches/')[0]),\n    PatchUpdatedAt = todatetime(PatchRow.Properties.lastModifiedDateTime),\n    PatchName = tostring(PatchRow.Properties.patchName), KbId = tostring(PatchRow.Properties.kbId),\n    Version = tostring(PatchRow.Properties.version), Classifications = PatchRow.Properties.classifications,\n    Severity = tostring(PatchRow.Properties.msrcSeverity), RebootBehavior = tostring(PatchRow.Properties.rebootBehavior)\n| extend PrimaryClassification = case(Classifications has 'Critical', 'Critical',\n    Classifications has 'Security', 'Security',\n    isnotempty(tostring(Classifications[0])), tostring(Classifications[0]), 'Unclassified')\n| extend PatchValid = isnotempty(PatchResourceId) and AssessmentStatus =~ 'Succeeded'\n    and PatchAssessmentId == AssessmentId\n    and isnotnull(AssessmentStartedAt) and isnotnull(AssessmentTime) and isnotnull(PatchUpdatedAt)\n    and PatchUpdatedAt >= AssessmentStartedAt and PatchUpdatedAt <= AssessmentTime\n| where PatchValid\n| summarize Patches = count() by PrimaryClassification\n| order by Patches desc",
+              "size": 0,
+              "title": "Returned Missing Patches by Primary Classification",
+              "noDataMessage": "No matching assessment/patch data returned. Check scope, Update Manager assessments, retention, and read permissions. No returned patches does not establish that a machine is fully patched.",
+              "queryType": 1,
+              "resourceType": "microsoft.resourcegraph/resources",
+              "crossComponentResources": [
+                "{Subscription}"
+              ],
+              "visualization": "piechart",
+              "showExportToExcel": false
+            },
+            "customWidth": "33",
+            "name": "query - updates-classifications"
+          },
+          {
+            "type": 3,
+            "content": {
+              "version": "KqlItem/1.0",
+              "query": "resources\n| where type in~ ('microsoft.sqlvirtualmachine/sqlvirtualmachines', 'microsoft.azurearcdata/sqlserverinstances', 'microsoft.hybridcompute/machines')\n| where type !~ 'microsoft.hybridcompute/machines' or tostring(properties.detectedProperties.mssqldiscovered) =~ 'true'\n| extend MachineId = tolower(case(\n    type =~ 'microsoft.sqlvirtualmachine/sqlvirtualmachines', tostring(properties.virtualMachineResourceId),\n    type =~ 'microsoft.azurearcdata/sqlserverinstances', tostring(properties.containerResourceId), id))\n| where MachineId matches regex '^/subscriptions/[^/]+/resourcegroups/[^/]+/providers/microsoft[.](compute/virtualmachines|hybridcompute/machines)/[^/]+$'\n| extend Machine = tostring(split(MachineId, '/')[8]), MachineResourceGroup = tostring(split(MachineId, '/')[4]),\n    HostType = iff(MachineId contains '/microsoft.hybridcompute/machines/', 'Arc SQL host', 'Azure SQL VM')\n| where ('*' in ({ResourceGroup}) or MachineResourceGroup in~ ({ResourceGroup}))\n| summarize by MachineId, Machine, MachineResourceGroup, HostType\n| join kind=leftouter (\n    patchassessmentresources\n    | where type in~ ('microsoft.compute/virtualmachines/patchassessmentresults', 'microsoft.hybridcompute/machines/patchassessmentresults',\n        'microsoft.compute/virtualmachines/patchassessmentresults/softwarepatches', 'microsoft.hybridcompute/machines/patchassessmentresults/softwarepatches')\n    | extend MachineId = tostring(split(tolower(id), '/patchassessmentresults/')[0]),\n        IsSummary = type endswith '/patchassessmentresults'\n    | summarize AssessmentRows = make_list_if(pack('Id', tolower(id), 'Properties', properties), IsSummary, 1048576),\n        PatchRows = make_list_if(pack('Id', tolower(id), 'Properties', properties), not(IsSummary), 1048576),\n        PatchRecordCount = countif(not(IsSummary)) by MachineId\n) on MachineId\n| extend PatchDetailsTruncated = coalesce(PatchRecordCount, 0) > coalesce(array_length(PatchRows), 0) or array_length(PatchRows) > 2000\n| extend AssessmentRows = iff(coalesce(array_length(AssessmentRows), 0) > 0, AssessmentRows, dynamic([null]))\n| mv-expand AssessmentRow = AssessmentRows limit 2000\n| extend AssessmentId = tostring(AssessmentRow.Id), AssessmentTime = todatetime(AssessmentRow.Properties.lastModifiedDateTime),\n    AssessmentStartedAt = todatetime(AssessmentRow.Properties.startDateTime),\n    AssessmentStatus = tostring(AssessmentRow.Properties.status), OS = tostring(AssessmentRow.Properties.osType),\n    RebootPending = tobool(AssessmentRow.Properties.rebootPending), AssessmentErrors = tostring(AssessmentRow.Properties.errorDetails),\n    ReportedClassificationCounts = tostring(AssessmentRow.Properties.availablePatchCountByClassification)\n| summarize arg_max(coalesce(AssessmentTime, datetime(1900-01-01)), *) by MachineId\n| extend AssessmentCoverage = case(isempty(AssessmentId), 'No assessment returned',\n    AssessmentStatus !~ 'Succeeded', 'Assessment not successful',\n    isnull(AssessmentTime), 'Assessment time unknown',\n    AssessmentTime < ago(24h), 'Stale (over 24 hours)', 'Fresh (within 24 hours)')\n| extend PatchRows = iff(coalesce(array_length(PatchRows), 0) > 0, PatchRows, dynamic([null]))\n| mv-expand PatchRow = PatchRows limit 2000\n| extend PatchResourceId = tostring(PatchRow.Id),\n    PatchAssessmentId = tostring(split(tostring(PatchRow.Id), '/softwarepatches/')[0]),\n    PatchUpdatedAt = todatetime(PatchRow.Properties.lastModifiedDateTime),\n    PatchName = tostring(PatchRow.Properties.patchName), KbId = tostring(PatchRow.Properties.kbId),\n    Version = tostring(PatchRow.Properties.version), Classifications = PatchRow.Properties.classifications,\n    Severity = tostring(PatchRow.Properties.msrcSeverity), RebootBehavior = tostring(PatchRow.Properties.rebootBehavior)\n| extend PrimaryClassification = case(Classifications has 'Critical', 'Critical',\n    Classifications has 'Security', 'Security',\n    isnotempty(tostring(Classifications[0])), tostring(Classifications[0]), 'Unclassified')\n| extend PatchValid = isnotempty(PatchResourceId) and AssessmentStatus =~ 'Succeeded'\n    and PatchAssessmentId == AssessmentId\n    and isnotnull(AssessmentStartedAt) and isnotnull(AssessmentTime) and isnotnull(PatchUpdatedAt)\n    and PatchUpdatedAt >= AssessmentStartedAt and PatchUpdatedAt <= AssessmentTime\n| summarize ReturnedMissingPatches = countif(PatchValid),\n    Security = countif(PatchValid and PrimaryClassification == 'Security'),\n    Critical = countif(PatchValid and PrimaryClassification == 'Critical')\n    by MachineId, Machine, MachineResourceGroup, HostType, OS, AssessmentCoverage,\n        AssessmentStatus, AssessmentTime, RebootPending, AssessmentErrors, ReportedClassificationCounts, PatchDetailsTruncated\n| summarize Machines = count() by RebootStatus = case(AssessmentCoverage == 'No assessment returned', 'Not reported',\n    isnull(RebootPending), 'Not reported', RebootPending == true, 'Pending', 'Not pending (reported)')",
+              "size": 0,
+              "title": "Latest Reported Reboot Status: All SQL Hosts",
+              "noDataMessage": "No matching assessment/patch data returned. Check scope, Update Manager assessments, retention, and read permissions. No returned patches does not establish that a machine is fully patched.",
+              "queryType": 1,
+              "resourceType": "microsoft.resourcegraph/resources",
+              "crossComponentResources": [
+                "{Subscription}"
+              ],
+              "visualization": "piechart",
+              "showExportToExcel": false
+            },
+            "customWidth": "34",
+            "name": "query - updates-reboot"
+          },
+          {
+            "type": 3,
+            "content": {
+              "version": "KqlItem/1.0",
+              "query": "resources\n| where type in~ ('microsoft.sqlvirtualmachine/sqlvirtualmachines', 'microsoft.azurearcdata/sqlserverinstances', 'microsoft.hybridcompute/machines')\n| where type !~ 'microsoft.hybridcompute/machines' or tostring(properties.detectedProperties.mssqldiscovered) =~ 'true'\n| extend MachineId = tolower(case(\n    type =~ 'microsoft.sqlvirtualmachine/sqlvirtualmachines', tostring(properties.virtualMachineResourceId),\n    type =~ 'microsoft.azurearcdata/sqlserverinstances', tostring(properties.containerResourceId), id))\n| where MachineId matches regex '^/subscriptions/[^/]+/resourcegroups/[^/]+/providers/microsoft[.](compute/virtualmachines|hybridcompute/machines)/[^/]+$'\n| extend Machine = tostring(split(MachineId, '/')[8]), MachineResourceGroup = tostring(split(MachineId, '/')[4]),\n    HostType = iff(MachineId contains '/microsoft.hybridcompute/machines/', 'Arc SQL host', 'Azure SQL VM')\n| where ('*' in ({ResourceGroup}) or MachineResourceGroup in~ ({ResourceGroup}))\n| summarize by MachineId, Machine, MachineResourceGroup, HostType\n| join kind=leftouter (\n    patchassessmentresources\n    | where type in~ ('microsoft.compute/virtualmachines/patchassessmentresults', 'microsoft.hybridcompute/machines/patchassessmentresults',\n        'microsoft.compute/virtualmachines/patchassessmentresults/softwarepatches', 'microsoft.hybridcompute/machines/patchassessmentresults/softwarepatches')\n    | extend MachineId = tostring(split(tolower(id), '/patchassessmentresults/')[0]),\n        IsSummary = type endswith '/patchassessmentresults'\n    | summarize AssessmentRows = make_list_if(pack('Id', tolower(id), 'Properties', properties), IsSummary, 1048576),\n        PatchRows = make_list_if(pack('Id', tolower(id), 'Properties', properties), not(IsSummary), 1048576),\n        PatchRecordCount = countif(not(IsSummary)) by MachineId\n) on MachineId\n| extend PatchDetailsTruncated = coalesce(PatchRecordCount, 0) > coalesce(array_length(PatchRows), 0) or array_length(PatchRows) > 2000\n| extend AssessmentRows = iff(coalesce(array_length(AssessmentRows), 0) > 0, AssessmentRows, dynamic([null]))\n| mv-expand AssessmentRow = AssessmentRows limit 2000\n| extend AssessmentId = tostring(AssessmentRow.Id), AssessmentTime = todatetime(AssessmentRow.Properties.lastModifiedDateTime),\n    AssessmentStartedAt = todatetime(AssessmentRow.Properties.startDateTime),\n    AssessmentStatus = tostring(AssessmentRow.Properties.status), OS = tostring(AssessmentRow.Properties.osType),\n    RebootPending = tobool(AssessmentRow.Properties.rebootPending), AssessmentErrors = tostring(AssessmentRow.Properties.errorDetails),\n    ReportedClassificationCounts = tostring(AssessmentRow.Properties.availablePatchCountByClassification)\n| summarize arg_max(coalesce(AssessmentTime, datetime(1900-01-01)), *) by MachineId\n| extend AssessmentCoverage = case(isempty(AssessmentId), 'No assessment returned',\n    AssessmentStatus !~ 'Succeeded', 'Assessment not successful',\n    isnull(AssessmentTime), 'Assessment time unknown',\n    AssessmentTime < ago(24h), 'Stale (over 24 hours)', 'Fresh (within 24 hours)')\n| extend PatchRows = iff(coalesce(array_length(PatchRows), 0) > 0, PatchRows, dynamic([null]))\n| mv-expand PatchRow = PatchRows limit 2000\n| extend PatchResourceId = tostring(PatchRow.Id),\n    PatchAssessmentId = tostring(split(tostring(PatchRow.Id), '/softwarepatches/')[0]),\n    PatchUpdatedAt = todatetime(PatchRow.Properties.lastModifiedDateTime),\n    PatchName = tostring(PatchRow.Properties.patchName), KbId = tostring(PatchRow.Properties.kbId),\n    Version = tostring(PatchRow.Properties.version), Classifications = PatchRow.Properties.classifications,\n    Severity = tostring(PatchRow.Properties.msrcSeverity), RebootBehavior = tostring(PatchRow.Properties.rebootBehavior)\n| extend PrimaryClassification = case(Classifications has 'Critical', 'Critical',\n    Classifications has 'Security', 'Security',\n    isnotempty(tostring(Classifications[0])), tostring(Classifications[0]), 'Unclassified')\n| extend PatchValid = isnotempty(PatchResourceId) and AssessmentStatus =~ 'Succeeded'\n    and PatchAssessmentId == AssessmentId\n    and isnotnull(AssessmentStartedAt) and isnotnull(AssessmentTime) and isnotnull(PatchUpdatedAt)\n    and PatchUpdatedAt >= AssessmentStartedAt and PatchUpdatedAt <= AssessmentTime\n| summarize ReturnedMissingPatches = countif(PatchValid),\n    Security = countif(PatchValid and PrimaryClassification == 'Security'),\n    Critical = countif(PatchValid and PrimaryClassification == 'Critical')\n    by MachineId, Machine, MachineResourceGroup, HostType, OS, AssessmentCoverage,\n        AssessmentStatus, AssessmentTime, RebootPending, AssessmentErrors, ReportedClassificationCounts, PatchDetailsTruncated\n| order by ReturnedMissingPatches desc, Machine asc",
+              "size": 0,
+              "title": "SQL Hosts: Select a Machine for Missing Patches",
+              "noDataMessage": "No matching assessment/patch data returned. Check scope, Update Manager assessments, retention, and read permissions. No returned patches does not establish that a machine is fully patched.",
+              "queryType": 1,
+              "resourceType": "microsoft.resourcegraph/resources",
+              "crossComponentResources": [
+                "{Subscription}"
+              ],
+              "visualization": "table",
+              "showExportToExcel": true,
+              "exportedParameters": [
+                {
+                  "fieldName": "MachineId",
+                  "parameterName": "UpdatesMachineId",
+                  "parameterType": 1,
+                  "defaultValue": "All"
+                }
+              ],
+              "gridSettings": {
+                "filter": true,
+                "formatters": [
+                  {
+                    "columnMatch": "MachineId",
+                    "formatter": 5
+                  },
+                  {
+                    "columnMatch": "AssessmentTime",
+                    "formatter": 6,
+                    "dateFormat": {
+                      "showUtc": true,
+                      "formatName": "shortDateTimePattern"
+                    }
+                  }
+                ]
+              }
+            },
+            "customWidth": "100",
+            "name": "query - updates-machines"
+          },
+          {
+            "type": 3,
+            "content": {
+              "version": "KqlItem/1.0",
+              "query": "resources\n| where type in~ ('microsoft.sqlvirtualmachine/sqlvirtualmachines', 'microsoft.azurearcdata/sqlserverinstances', 'microsoft.hybridcompute/machines')\n| where type !~ 'microsoft.hybridcompute/machines' or tostring(properties.detectedProperties.mssqldiscovered) =~ 'true'\n| extend MachineId = tolower(case(\n    type =~ 'microsoft.sqlvirtualmachine/sqlvirtualmachines', tostring(properties.virtualMachineResourceId),\n    type =~ 'microsoft.azurearcdata/sqlserverinstances', tostring(properties.containerResourceId), id))\n| where MachineId matches regex '^/subscriptions/[^/]+/resourcegroups/[^/]+/providers/microsoft[.](compute/virtualmachines|hybridcompute/machines)/[^/]+$'\n| extend Machine = tostring(split(MachineId, '/')[8]), MachineResourceGroup = tostring(split(MachineId, '/')[4]),\n    HostType = iff(MachineId contains '/microsoft.hybridcompute/machines/', 'Arc SQL host', 'Azure SQL VM')\n| where ('*' in ({ResourceGroup}) or MachineResourceGroup in~ ({ResourceGroup}))\n| summarize by MachineId, Machine, MachineResourceGroup, HostType\n| join kind=leftouter (\n    patchassessmentresources\n    | where type in~ ('microsoft.compute/virtualmachines/patchassessmentresults', 'microsoft.hybridcompute/machines/patchassessmentresults',\n        'microsoft.compute/virtualmachines/patchassessmentresults/softwarepatches', 'microsoft.hybridcompute/machines/patchassessmentresults/softwarepatches')\n    | extend MachineId = tostring(split(tolower(id), '/patchassessmentresults/')[0]),\n        IsSummary = type endswith '/patchassessmentresults'\n    | summarize AssessmentRows = make_list_if(pack('Id', tolower(id), 'Properties', properties), IsSummary, 1048576),\n        PatchRows = make_list_if(pack('Id', tolower(id), 'Properties', properties), not(IsSummary), 1048576),\n        PatchRecordCount = countif(not(IsSummary)) by MachineId\n) on MachineId\n| extend PatchDetailsTruncated = coalesce(PatchRecordCount, 0) > coalesce(array_length(PatchRows), 0) or array_length(PatchRows) > 2000\n| extend AssessmentRows = iff(coalesce(array_length(AssessmentRows), 0) > 0, AssessmentRows, dynamic([null]))\n| mv-expand AssessmentRow = AssessmentRows limit 2000\n| extend AssessmentId = tostring(AssessmentRow.Id), AssessmentTime = todatetime(AssessmentRow.Properties.lastModifiedDateTime),\n    AssessmentStartedAt = todatetime(AssessmentRow.Properties.startDateTime),\n    AssessmentStatus = tostring(AssessmentRow.Properties.status), OS = tostring(AssessmentRow.Properties.osType),\n    RebootPending = tobool(AssessmentRow.Properties.rebootPending), AssessmentErrors = tostring(AssessmentRow.Properties.errorDetails),\n    ReportedClassificationCounts = tostring(AssessmentRow.Properties.availablePatchCountByClassification)\n| summarize arg_max(coalesce(AssessmentTime, datetime(1900-01-01)), *) by MachineId\n| extend AssessmentCoverage = case(isempty(AssessmentId), 'No assessment returned',\n    AssessmentStatus !~ 'Succeeded', 'Assessment not successful',\n    isnull(AssessmentTime), 'Assessment time unknown',\n    AssessmentTime < ago(24h), 'Stale (over 24 hours)', 'Fresh (within 24 hours)')\n| extend PatchRows = iff(coalesce(array_length(PatchRows), 0) > 0, PatchRows, dynamic([null]))\n| mv-expand PatchRow = PatchRows limit 2000\n| extend PatchResourceId = tostring(PatchRow.Id),\n    PatchAssessmentId = tostring(split(tostring(PatchRow.Id), '/softwarepatches/')[0]),\n    PatchUpdatedAt = todatetime(PatchRow.Properties.lastModifiedDateTime),\n    PatchName = tostring(PatchRow.Properties.patchName), KbId = tostring(PatchRow.Properties.kbId),\n    Version = tostring(PatchRow.Properties.version), Classifications = PatchRow.Properties.classifications,\n    Severity = tostring(PatchRow.Properties.msrcSeverity), RebootBehavior = tostring(PatchRow.Properties.rebootBehavior)\n| extend PrimaryClassification = case(Classifications has 'Critical', 'Critical',\n    Classifications has 'Security', 'Security',\n    isnotempty(tostring(Classifications[0])), tostring(Classifications[0]), 'Unclassified')\n| extend PatchValid = isnotempty(PatchResourceId) and AssessmentStatus =~ 'Succeeded'\n    and PatchAssessmentId == AssessmentId\n    and isnotnull(AssessmentStartedAt) and isnotnull(AssessmentTime) and isnotnull(PatchUpdatedAt)\n    and PatchUpdatedAt >= AssessmentStartedAt and PatchUpdatedAt <= AssessmentTime\n| where PatchValid\n| summarize by MachineId, PatchName, KbId, Version, PrimaryClassification\n| summarize AffectedMachines = count() by PatchName, KbId, Version, PrimaryClassification\n| order by AffectedMachines desc, PatchName asc",
+              "size": 0,
+              "title": "Missing Patches Across the SQL Estate: Affected Machine Totals",
+              "noDataMessage": "No matching assessment/patch data returned. Check scope, Update Manager assessments, retention, and read permissions. No returned patches does not establish that a machine is fully patched.",
+              "queryType": 1,
+              "resourceType": "microsoft.resourcegraph/resources",
+              "crossComponentResources": [
+                "{Subscription}"
+              ],
+              "visualization": "table",
+              "showExportToExcel": true
+            },
+            "customWidth": "100",
+            "name": "query - updates-catalogue"
+          },
+          {
+            "type": 11,
+            "content": {
+              "version": "LinkItem/1.0",
+              "style": "links",
+              "links": [
+                {
+                  "id": "93ed3b2d-05d4-44c9-bdb6-180633c6fa54",
+                  "cellValue": "UpdatesMachineId",
+                  "linkTarget": "parameter",
+                  "linkLabel": "Show missing patches for all SQL hosts",
+                  "subTarget": "All",
+                  "style": "link"
+                }
+              ]
+            },
+            "name": "links - updates-reset"
+          },
+          {
+            "type": 3,
+            "content": {
+              "version": "KqlItem/1.0",
+              "query": "resources\n| where type in~ ('microsoft.sqlvirtualmachine/sqlvirtualmachines', 'microsoft.azurearcdata/sqlserverinstances', 'microsoft.hybridcompute/machines')\n| where type !~ 'microsoft.hybridcompute/machines' or tostring(properties.detectedProperties.mssqldiscovered) =~ 'true'\n| extend MachineId = tolower(case(\n    type =~ 'microsoft.sqlvirtualmachine/sqlvirtualmachines', tostring(properties.virtualMachineResourceId),\n    type =~ 'microsoft.azurearcdata/sqlserverinstances', tostring(properties.containerResourceId), id))\n| where MachineId matches regex '^/subscriptions/[^/]+/resourcegroups/[^/]+/providers/microsoft[.](compute/virtualmachines|hybridcompute/machines)/[^/]+$'\n| extend Machine = tostring(split(MachineId, '/')[8]), MachineResourceGroup = tostring(split(MachineId, '/')[4]),\n    HostType = iff(MachineId contains '/microsoft.hybridcompute/machines/', 'Arc SQL host', 'Azure SQL VM')\n| where ('*' in ({ResourceGroup}) or MachineResourceGroup in~ ({ResourceGroup}))\n| summarize by MachineId, Machine, MachineResourceGroup, HostType\n| join kind=leftouter (\n    patchassessmentresources\n    | where type in~ ('microsoft.compute/virtualmachines/patchassessmentresults', 'microsoft.hybridcompute/machines/patchassessmentresults',\n        'microsoft.compute/virtualmachines/patchassessmentresults/softwarepatches', 'microsoft.hybridcompute/machines/patchassessmentresults/softwarepatches')\n    | extend MachineId = tostring(split(tolower(id), '/patchassessmentresults/')[0]),\n        IsSummary = type endswith '/patchassessmentresults'\n    | summarize AssessmentRows = make_list_if(pack('Id', tolower(id), 'Properties', properties), IsSummary, 1048576),\n        PatchRows = make_list_if(pack('Id', tolower(id), 'Properties', properties), not(IsSummary), 1048576),\n        PatchRecordCount = countif(not(IsSummary)) by MachineId\n) on MachineId\n| extend PatchDetailsTruncated = coalesce(PatchRecordCount, 0) > coalesce(array_length(PatchRows), 0) or array_length(PatchRows) > 2000\n| extend AssessmentRows = iff(coalesce(array_length(AssessmentRows), 0) > 0, AssessmentRows, dynamic([null]))\n| mv-expand AssessmentRow = AssessmentRows limit 2000\n| extend AssessmentId = tostring(AssessmentRow.Id), AssessmentTime = todatetime(AssessmentRow.Properties.lastModifiedDateTime),\n    AssessmentStartedAt = todatetime(AssessmentRow.Properties.startDateTime),\n    AssessmentStatus = tostring(AssessmentRow.Properties.status), OS = tostring(AssessmentRow.Properties.osType),\n    RebootPending = tobool(AssessmentRow.Properties.rebootPending), AssessmentErrors = tostring(AssessmentRow.Properties.errorDetails),\n    ReportedClassificationCounts = tostring(AssessmentRow.Properties.availablePatchCountByClassification)\n| summarize arg_max(coalesce(AssessmentTime, datetime(1900-01-01)), *) by MachineId\n| extend AssessmentCoverage = case(isempty(AssessmentId), 'No assessment returned',\n    AssessmentStatus !~ 'Succeeded', 'Assessment not successful',\n    isnull(AssessmentTime), 'Assessment time unknown',\n    AssessmentTime < ago(24h), 'Stale (over 24 hours)', 'Fresh (within 24 hours)')\n| extend PatchRows = iff(coalesce(array_length(PatchRows), 0) > 0, PatchRows, dynamic([null]))\n| mv-expand PatchRow = PatchRows limit 2000\n| extend PatchResourceId = tostring(PatchRow.Id),\n    PatchAssessmentId = tostring(split(tostring(PatchRow.Id), '/softwarepatches/')[0]),\n    PatchUpdatedAt = todatetime(PatchRow.Properties.lastModifiedDateTime),\n    PatchName = tostring(PatchRow.Properties.patchName), KbId = tostring(PatchRow.Properties.kbId),\n    Version = tostring(PatchRow.Properties.version), Classifications = PatchRow.Properties.classifications,\n    Severity = tostring(PatchRow.Properties.msrcSeverity), RebootBehavior = tostring(PatchRow.Properties.rebootBehavior)\n| extend PrimaryClassification = case(Classifications has 'Critical', 'Critical',\n    Classifications has 'Security', 'Security',\n    isnotempty(tostring(Classifications[0])), tostring(Classifications[0]), 'Unclassified')\n| extend PatchValid = isnotempty(PatchResourceId) and AssessmentStatus =~ 'Succeeded'\n    and PatchAssessmentId == AssessmentId\n    and isnotnull(AssessmentStartedAt) and isnotnull(AssessmentTime) and isnotnull(PatchUpdatedAt)\n    and PatchUpdatedAt >= AssessmentStartedAt and PatchUpdatedAt <= AssessmentTime\n| where PatchValid\n| where ('{UpdatesMachineId}' == 'All' or MachineId == '{UpdatesMachineId}')\n| project Machine, HostType, MachineResourceGroup, OS, AssessmentCoverage, AssessmentTime,\n    PatchName, KbId, Version, PrimaryClassification, Classifications, Severity, RebootBehavior,\n    PatchUpdatedAt, MachineId, PatchResourceId\n| order by Machine asc, PrimaryClassification asc, PatchName asc",
+              "size": 0,
+              "title": "Missing Patches: All SQL Hosts or Selected Machine",
+              "noDataMessage": "No matching assessment/patch data returned. Check scope, Update Manager assessments, retention, and read permissions. No returned patches does not establish that a machine is fully patched.",
+              "queryType": 1,
+              "resourceType": "microsoft.resourcegraph/resources",
+              "crossComponentResources": [
+                "{Subscription}"
+              ],
+              "visualization": "table",
+              "showExportToExcel": true,
+              "gridSettings": {
+                "filter": true,
+                "formatters": [
+                  {
+                    "columnMatch": "PatchResourceId",
+                    "formatter": 5
+                  },
+                  {
+                    "columnMatch": "MachineId",
+                    "formatter": 7,
+                    "formatOptions": {
+                      "linkTarget": "Resource",
+                      "linkLabel": "Open machine",
+                      "linkIsContextBlade": false
+                    }
+                  },
+                  {
+                    "columnMatch": "AssessmentTime|PatchUpdatedAt",
+                    "formatter": 6,
+                    "dateFormat": {
+                      "showUtc": true,
+                      "formatName": "shortDateTimePattern"
+                    }
+                  }
+                ]
+              }
+            },
+            "customWidth": "100",
+            "name": "query - updates-details"
+          }
+        ]
+      },
+      "conditionalVisibility": {
+        "parameterName": "selMainTab",
+        "comparison": "isEqualTo",
+        "value": "AzureUpdates"
+      },
+      "name": "group - Azure Updates"
     }
   ],
   "fallbackResourceIds": [

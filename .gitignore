@@ -11,6 +11,11 @@ override.tf.json
 *_override.tf.json
 .terraform.lock.hcl
 terraform.tfvars
+/terraform/**/*.tfvars
+/terraform/**/*.tfvars.json
 
 # Hyper-V
 hyper-v/license-keys.ps1
+
+# Local SAS download URLs
+iso-urls.txt

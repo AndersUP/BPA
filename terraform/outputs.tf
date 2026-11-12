@@ -38,14 +38,17 @@ output "log_analytics_workspace_name" {
   value       = azurerm_log_analytics_workspace.bpa.name
 }
 
-output "bpa_command" {
-  description = "Command to enable SQL BPA on all lab VMs at once"
-  value = join(" ", [
-    ".\\Install-SqlIaaSExtension-BPA.ps1",
-    "-SubscriptionId '${data.azurerm_client_config.current.subscription_id}'",
-    "-ResourceGroupName '${azurerm_resource_group.main.name}'",
-    "-VmNames ${join(",", [for vm in azurerm_windows_virtual_machine.sql : "'${vm.name}'"])}",
-    "-Location '${var.location}'",
-    "-WorkspaceName '${azurerm_log_analytics_workspace.bpa.name}'"
-  ])
+output "bpa_schedule" {
+  description = "Terraform-managed SQL BPA schedule (VM time zone is UTC)"
+  value       = "Every Sunday at 09:00 UTC; VMs must be running."
+}
+
+output "sql_alert_action_group_id" {
+  description = "Action group for SQL BPA notifications"
+  value       = azurerm_monitor_action_group.sql_bpa.id
+}
+
+output "workbook_id" {
+  description = "Resource ID of the deployed Azure Arc SQL dashboard workbook"
+  value       = azurerm_application_insights_workbook.sql_dashboard.id
 }

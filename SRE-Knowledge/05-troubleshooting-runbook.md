@@ -47,7 +47,7 @@ Problem: BPA not working
 
 ### "Assessment feature is not enabled"
 **Cause**: BPA was never turned on for this SQL VM.
-**Fix**: Run `Install-SqlIaaSExtension-BPA.ps1` or enable via portal.
+**Fix**: Review and apply the assessment settings in [sql-assessment.tf](../terraform/sql-assessment.tf) for lab VMs. Use the portal for servers outside Terraform management.
 
 ### "No data in SqlAssessment_CL table"
 **Causes** (check in order):
@@ -70,7 +70,7 @@ Problem: BPA not working
 
 ### "Terraform plan shows destroy/recreate for DCR"
 **Cause**: Existing DCR was created by PowerShell and doesn't match Terraform config.
-**Fix**: Import existing resources first with `Import-DcrDceToTerraform.ps1`, then run `terraform plan` to verify.
+**Fix**: Use explicit Terraform imports as described in [the migration guide](../docs/DCR-DCE-MIGRATION.md), then review `terraform plan`.
 
 ---
 

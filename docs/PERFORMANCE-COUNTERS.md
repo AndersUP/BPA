@@ -52,6 +52,14 @@ This lab environment collects comprehensive performance counters from both Azure
 - Available MBytes - Available physical memory
 - Pages/sec - Memory paging rate (high values indicate memory pressure)
 
+### System: LogicalDisk
+- `\LogicalDisk(*)\Avg. Disk sec/Read` - Per-volume read latency
+- `\LogicalDisk(*)\Avg. Disk sec/Write` - Per-volume write latency
+
+These counters feed the workbook's disk latency panels through the `Perf` table.
+Values are collected in seconds; the workbook converts them to milliseconds.
+They use the existing performance DCR and its 60-second sampling interval.
+
 ### System: PhysicalDisk
 - Avg. Disk sec/Read - Average disk read latency (target: <10ms)
 - Avg. Disk sec/Write - Average disk write latency (target: <10ms)
@@ -197,7 +205,8 @@ cd terraform
 terraform apply
 ```
 
-Arc machine associations are created by `Create-LabEnvironment.ps1` script.
+Arc machine associations are configured separately as described in
+[monitoring setup](MONITORING-SETUP.md). The lab creation script is Azure-only.
 
 ## Troubleshooting
 

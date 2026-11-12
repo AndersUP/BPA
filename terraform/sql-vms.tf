@@ -1,7 +1,7 @@
 locals {
   sql_vms = {
     "sql-bpa-01" = {
-      vm_size    = "Standard_B2ms"
+      vm_size    = "Standard_D2s_v5"
       sql_image  = { publisher = "MicrosoftSQLServer", offer = "sql2022-ws2022", sku = "sqldev-gen2" }
       data_disks = [{ size = 128, lun = 0 }]
       databases  = "adventureworks,misconfigdemo"
@@ -29,7 +29,7 @@ locals {
       misconfigs = "baseline"
     }
     "sql-bpa-05" = {
-      vm_size    = "Standard_B4ms"
+      vm_size    = "Standard_D4s_v5"
       sql_image  = { publisher = "MicrosoftSQLServer", offer = "sql2022-ws2022", sku = "sqldev-gen2" }
       data_disks = [{ size = 128, lun = 0 }, { size = 128, lun = 1 }]
       databases  = "adventureworks,misconfigdemo"
@@ -73,9 +73,10 @@ resource "azurerm_windows_virtual_machine" "sql" {
   name                = each.key
   location            = azurerm_resource_group.main.location
   resource_group_name = azurerm_resource_group.main.name
-  size                = each.value.vm_size
+  size                = lookup(var.vm_size_overrides, each.key, each.value.vm_size)
   admin_username      = var.admin_username
   admin_password      = random_password.admin.result
+  timezone            = "UTC"
   tags                = var.tags
 
   network_interface_ids = [azurerm_network_interface.sql[each.key].id]

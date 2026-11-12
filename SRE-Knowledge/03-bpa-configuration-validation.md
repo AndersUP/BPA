@@ -31,11 +31,11 @@ Expected output should show:
 ```json
 {
   "enable": true,
-  "runImmediately": true,
+  "runImmediately": false,
   "schedule": {
     "dayOfWeek": "Sunday",
     "enable": true,
-    "startTime": "02:00",
+    "startTime": "09:00",
     "weeklyInterval": 1
   }
 }
@@ -43,7 +43,8 @@ Expected output should show:
 
 **If `enable` is `false` or `assessmentSettings` is null**:
 ```powershell
-.\Install-SqlIaaSExtension-BPA.ps1 -SubscriptionId <sub> -ResourceGroupName <rg> -VmNames <vm-name> -Location <location> -WorkspaceName <workspace-name>
+terraform -chdir=terraform plan
+terraform -chdir=terraform apply
 ```
 
 **For Arc-enabled SQL Servers**:

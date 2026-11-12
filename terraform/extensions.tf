@@ -1,7 +1,7 @@
 # --- Storage account to host the configure-sql.ps1 script ---
 
 resource "azurerm_storage_account" "scripts" {
-  name                     = "${replace(var.prefix, "-", "")}scripts"
+  name                     = "${substr(lower(replace(var.prefix, "-", "")), 0, 9)}scripts${substr(sha256(lower(azurerm_resource_group.main.id)), 0, 8)}"
   resource_group_name      = azurerm_resource_group.main.name
   location                 = azurerm_resource_group.main.location
   account_tier             = "Standard"
@@ -30,12 +30,11 @@ resource "azurerm_role_assignment" "vm_blob_reader" {
 }
 
 resource "azurerm_storage_blob" "configure_sql" {
-  name                   = "configure-sql.ps1"
-  storage_account_name   = azurerm_storage_account.scripts.name
-  storage_container_name = azurerm_storage_container.scripts.name
-  type                   = "Block"
-  source                 = "${path.module}/scripts/configure-sql.ps1"
-  content_md5            = filemd5("${path.module}/scripts/configure-sql.ps1")
+  name                 = "configure-sql.ps1"
+  storage_container_id = azurerm_storage_container.scripts.id
+  type                 = "Block"
+  source               = "${path.module}/scripts/configure-sql.ps1"
+  content_md5          = filemd5("${path.module}/scripts/configure-sql.ps1")
 
   depends_on = [azurerm_role_assignment.scripts_blob_contributor]
 }

@@ -4,10 +4,17 @@ backend_resource_group_name    = "my-terraform-state-rg"
 backend_storage_account_name   = "mystorageaccount"
 backend_storage_container_name = "tfstate"
 
-prefix          = "sql-bpa-lab"
-location        = "swedencentral"
-admin_username  = "sqladmin"
-shutdown_time   = "1900"
+prefix              = "sql-bpa-lab"
+location            = "swedencentral"
+admin_username      = "sqladmin"
+shutdown_time       = "1900"
+alert_email_address = "ops@example.com"
+
+# Optional: override individual VM sizes if capacity is unavailable.
+# vm_size_overrides = {
+#   sql-bpa-01 = "Standard_D2s_v5"
+#   sql-bpa-05 = "Standard_D4s_v5"
+# }
 
 tags = {
   environment = "lab"

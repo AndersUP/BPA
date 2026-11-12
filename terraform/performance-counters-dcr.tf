@@ -68,6 +68,10 @@ resource "azurerm_monitor_data_collection_rule" "sql_perf_counters" {
         "\\Memory\\Available MBytes",
         "\\Memory\\Pages/sec",
 
+        # System: LogicalDisk (workbook disk latency panels)
+        "\\LogicalDisk(*)\\Avg. Disk sec/Read",
+        "\\LogicalDisk(*)\\Avg. Disk sec/Write",
+
         # System: PhysicalDisk (_Total)
         "\\PhysicalDisk(_Total)\\Avg. Disk sec/Read",
         "\\PhysicalDisk(_Total)\\Avg. Disk sec/Write",
@@ -114,5 +118,4 @@ resource "azurerm_monitor_data_collection_rule_association" "sql_vms_perf" {
 }
 
 # Note: DCE association is handled by bpa-assessment-dcr.tf (shared DCE for all data collection)
-# Note: Arc machine DCR associations will be created via PowerShell in Create-LabEnvironment.ps1
-# because Arc machine resource IDs are dynamic and not known at Terraform plan time
+# Arc machine associations are configured separately; see docs/MONITORING-SETUP.md.

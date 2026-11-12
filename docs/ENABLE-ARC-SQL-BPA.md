@@ -73,11 +73,17 @@ Reference: [Connect your SQL Server to Azure Arc](https://learn.microsoft.com/sq
 
 ### Option B — Unattended install with the Connected Machine Agent (scripted)
 
-This repository already includes a script that installs the Connected Machine Agent, connects to
-Arc with a service principal, and waits for the SQL extension:
-[Install-AzureArcAgent-SqlBPA.ps1](../Install-AzureArcAgent-SqlBPA.ps1).
+For guests on the Azure Hyper-V lab host, use
+[Enable-HyperVGuestArcSqlBpa.ps1](../hyper-v/Enable-HyperVGuestArcSqlBpa.ps1)
+**on the host** with explicit guest names. It installs/connects the agent inside
+each guest through PowerShell Direct and configures SQL BPA using Microsoft's
+built-in deployment template. See the
+[host-run workflow and permissions](MONITORING-SETUP.md#onboard-from-the-azure-hyper-v-host).
+It requires an explicit eligible license type and does not change the outer
+Azure VM into an Arc server.
 
-Core commands it runs (see [Connect hybrid machines using PowerShell](https://learn.microsoft.com/azure/azure-arc/servers/onboard-powershell)):
+For reference, the core guest-local agent commands are (see
+[Connect hybrid machines using PowerShell](https://learn.microsoft.com/azure/azure-arc/servers/onboard-powershell)):
 
 ```powershell
 # Download & install the agent
@@ -193,9 +199,8 @@ machine to the DCR's **Resources** list. This is the intended "one DCR, many ser
 ### Option 2 — Bring the auto-created DCR under IaC (import)
 
 If your goal is version control, let the feature create the `sqlbpa-*` DCR once, then **import** it into
-Terraform/Bicep rather than pre-creating a custom-named DCR (which the feature will not adopt). This repo's
-[Import-DcrDceToTerraform.ps1](../Import-DcrDceToTerraform.ps1) and
-[docs/DCR-DCE-MIGRATION.md](DCR-DCE-MIGRATION.md) describe this workflow.
+Terraform/Bicep rather than pre-creating a custom-named DCR (which the feature will not adopt).
+[DCR/DCE migration](DCR-DCE-MIGRATION.md) describes explicit Terraform imports.
 
 ```powershell
 # Example: import the assessment-created DCR into Terraform state
@@ -285,5 +290,4 @@ Full guide: [Troubleshoot best practices assessment on SQL Server](https://learn
 ## Related files in this repo
 
 - [Install-AzureArcAgent-SqlBPA.ps1](../Install-AzureArcAgent-SqlBPA.ps1) — scripted Arc onboarding + BPA enablement
-- [Import-DcrDceToTerraform.ps1](../Import-DcrDceToTerraform.ps1) — import an existing DCR/DCE into Terraform
 - [docs/DCR-DCE-MIGRATION.md](DCR-DCE-MIGRATION.md) — DCR/DCE migration to IaC

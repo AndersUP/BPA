@@ -47,7 +47,7 @@ DIAGNOSTIC PROCEDURE:
    For Azure VMs:
    - Command: az sql vm show --resource-group {rg} --name {vm} --query "assessmentSettings.enable"
    - Expected: true
-   - Fix: Run Install-SqlIaaSExtension-BPA.ps1 or enable via portal
+   - Fix: Review and apply terraform/sql-assessment.tf for Terraform-managed VMs; use the portal for other servers
    
    For Arc servers:
    - Check via Azure portal: Arc SQL Server resource > SQL best practices assessment
