@@ -2193,53 +2193,22 @@
           {
             "type": 1,
             "content": {
-              "json": "# Migration Assessment\nView migration readiness results collected by the Azure Arc SQL Server agent. Assessment evaluates databases for migration to Azure SQL Database, Azure SQL Managed Instance, and SQL Server on Azure VM.\n\n> Migration assessment must be enabled on your Arc-enabled SQL Server instances. Results are stored in Azure Resource Graph under `microsoft.azurearcdata/sqlserverinstances/databases`."
+              "json": "# Migration Assessment\nMigration readiness, right-sized SKU recommendations, and monthly cost estimates collected by the Azure Arc SQL Server agent. Evaluates each instance for **Azure SQL Managed Instance**, **Azure SQL Database**, and **SQL Server on Azure VM**.\n\n> Migration assessment must be enabled on the Arc-enabled SQL Server instances. Data is read from Azure Resource Graph under `microsoft.azurearcdata/sqlserverinstances` (`properties.migration.assessment`). **Select a server row** for cost, settings, SKU, and assessment-issue detail."
             },
             "name": "text - migration-header"
           },
           {
-            "type": 3,
+            "type": 1,
             "content": {
-              "version": "KqlItem/1.0",
-              "query": "resources\r\n| where type == \"microsoft.azurearcdata/sqlserverinstances/databases\"\r\n    and ('*' in ({ResourceGroup}) or resourceGroup in ({ResourceGroup}))\r\n| where isnotempty(properties.migration)\r\n| extend assessmentStatus = tostring(properties.migration.assessmentStatus)\r\n| summarize Databases = count() by Status = case(\r\n    assessmentStatus == \"Completed\", \"Assessed\",\r\n    assessmentStatus == \"InProgress\", \"In Progress\",\r\n    assessmentStatus == \"Failed\", \"Failed\",\r\n    \"Not Assessed\")\r\n| order by Databases desc",
-              "size": 3,
-              "title": "Assessment Coverage",
-              "noDataMessage": "No migration assessment data found. Ensure migration assessment is enabled on Arc-enabled SQL Server instances.",
-              "queryType": 1,
-              "resourceType": "microsoft.resourcegraph/resources",
-              "crossComponentResources": [
-                "{Subscription}"
-              ],
-              "visualization": "piechart",
-              "chartSettings": {
-                "seriesLabelSettings": [
-                  {
-                    "seriesName": "Assessed",
-                    "color": "green"
-                  },
-                  {
-                    "seriesName": "Not Assessed",
-                    "color": "gray"
-                  },
-                  {
-                    "seriesName": "In Progress",
-                    "color": "blue"
-                  },
-                  {
-                    "seriesName": "Failed",
-                    "color": "redBright"
-                  }
-                ]
-              }
+              "json": "## Migration Readiness Overview"
             },
-            "customWidth": "33",
-            "name": "query - migration-coverage"
+            "name": "text - mig-rollup-header"
           },
           {
             "type": 3,
             "content": {
               "version": "KqlItem/1.0",
-              "query": "resources\r\n| where type == \"microsoft.azurearcdata/sqlserverinstances/databases\"\r\n    and ('*' in ({ResourceGroup}) or resourceGroup in ({ResourceGroup}))\r\n| where isnotempty(properties.migration.assessment)\r\n| extend miTarget = parse_json(properties.migration.assessment.targetReadiness.azureSqlManagedInstance)\r\n| extend readiness = tostring(miTarget.readiness)\r\n| summarize Databases = count() by Readiness = case(\r\n    readiness =~ \"Ready\", \"Ready\",\r\n    readiness =~ \"ReadyWithConditions\", \"Ready with Conditions\",\r\n    readiness =~ \"NotReady\", \"Not Ready\",\r\n    \"Unknown\")\r\n| order by Databases desc",
+              "query": "resources\n| where type == \"microsoft.azurearcdata/sqlserverinstances\"\n    and ('*' in ({ResourceGroup}) or resourceGroup in ({ResourceGroup}))\n| extend m = properties.migration.assessment\n| where isnotnull(m)\n| extend status = tostring(m.skuRecommendationResults.azureSqlManagedInstance.recommendationStatus)\n| summarize Servers = count() by Readiness = case(\n    status =~ \"Ready\", \"Ready\",\n    status =~ \"ConditionallyReady\", \"Conditionally Ready\",\n    status =~ \"NotReady\", \"Not Ready\",\n    \"Unknown\")\n| order by Servers desc",
               "size": 3,
               "title": "Azure SQL MI Readiness",
               "noDataMessage": "No MI readiness data available.",
@@ -2256,7 +2225,7 @@
                     "color": "green"
                   },
                   {
-                    "seriesName": "Ready with Conditions",
+                    "seriesName": "Conditionally Ready",
                     "color": "orange"
                   },
                   {
@@ -2271,13 +2240,13 @@
               }
             },
             "customWidth": "33",
-            "name": "query - migration-mi-readiness"
+            "name": "query - mig-mi-readiness"
           },
           {
             "type": 3,
             "content": {
               "version": "KqlItem/1.0",
-              "query": "resources\r\n| where type == \"microsoft.azurearcdata/sqlserverinstances/databases\"\r\n    and ('*' in ({ResourceGroup}) or resourceGroup in ({ResourceGroup}))\r\n| where isnotempty(properties.migration.assessment)\r\n| extend dbTarget = parse_json(properties.migration.assessment.targetReadiness.azureSqlDatabase)\r\n| extend readiness = tostring(dbTarget.readiness)\r\n| summarize Databases = count() by Readiness = case(\r\n    readiness =~ \"Ready\", \"Ready\",\r\n    readiness =~ \"ReadyWithConditions\", \"Ready with Conditions\",\r\n    readiness =~ \"NotReady\", \"Not Ready\",\r\n    \"Unknown\")\r\n| order by Databases desc",
+              "query": "resources\n| where type == \"microsoft.azurearcdata/sqlserverinstances\"\n    and ('*' in ({ResourceGroup}) or resourceGroup in ({ResourceGroup}))\n| extend m = properties.migration.assessment\n| where isnotnull(m)\n| extend status = tostring(m.skuRecommendationResults.azureSqlDatabase.recommendationStatus)\n| summarize Servers = count() by Readiness = case(\n    status =~ \"Ready\", \"Ready\",\n    status =~ \"ConditionallyReady\", \"Conditionally Ready\",\n    status =~ \"NotReady\", \"Not Ready\",\n    \"Unknown\")\n| order by Servers desc",
               "size": 3,
               "title": "Azure SQL DB Readiness",
               "noDataMessage": "No SQL DB readiness data available.",
@@ -2294,7 +2263,45 @@
                     "color": "green"
                   },
                   {
-                    "seriesName": "Ready with Conditions",
+                    "seriesName": "Conditionally Ready",
+                    "color": "orange"
+                  },
+                  {
+                    "seriesName": "Not Ready",
+                    "color": "redBright"
+                  },
+                  {
+                    "seriesName": "Unknown",
+                    "color": "gray"
+                  }
+                ]
+              }
+            },
+            "customWidth": "33",
+            "name": "query - mig-db-readiness"
+          },
+          {
+            "type": 3,
+            "content": {
+              "version": "KqlItem/1.0",
+              "query": "resources\n| where type == \"microsoft.azurearcdata/sqlserverinstances\"\n    and ('*' in ({ResourceGroup}) or resourceGroup in ({ResourceGroup}))\n| extend m = properties.migration.assessment\n| where isnotnull(m)\n| extend status = tostring(m.skuRecommendationResults.azureSqlVirtualMachine.recommendationStatus)\n| summarize Servers = count() by Readiness = case(\n    status =~ \"Ready\", \"Ready\",\n    status =~ \"ConditionallyReady\", \"Conditionally Ready\",\n    status =~ \"NotReady\", \"Not Ready\",\n    \"Unknown\")\n| order by Servers desc",
+              "size": 3,
+              "title": "SQL Server on Azure VM Readiness",
+              "noDataMessage": "No SQL VM readiness data available.",
+              "queryType": 1,
+              "resourceType": "microsoft.resourcegraph/resources",
+              "crossComponentResources": [
+                "{Subscription}"
+              ],
+              "visualization": "piechart",
+              "chartSettings": {
+                "seriesLabelSettings": [
+                  {
+                    "seriesName": "Ready",
+                    "color": "green"
+                  },
+                  {
+                    "seriesName": "Conditionally Ready",
                     "color": "orange"
                   },
                   {
@@ -2309,158 +2316,13 @@
               }
             },
             "customWidth": "34",
-            "name": "query - migration-sqldb-readiness"
+            "name": "query - mig-vm-readiness"
           },
           {
             "type": 3,
             "content": {
               "version": "KqlItem/1.0",
-              "query": "resources\r\n| where type == \"microsoft.azurearcdata/sqlserverinstances/databases\"\r\n    and ('*' in ({ResourceGroup}) or resourceGroup in ({ResourceGroup}))\r\n| where isnotempty(properties.migration.assessment)\r\n| extend\r\n    instanceId = tostring(properties.sqlServerInstanceId),\r\n    instanceName = tostring(split(tostring(properties.sqlServerInstanceId), \"/\")[-1]),\r\n    machineName = tostring(split(id, \"/\")[8]),\r\n    dbName = name,\r\n    miReadiness = tostring(properties.migration.assessment.targetReadiness.azureSqlManagedInstance.readiness),\r\n    sqlDbReadiness = tostring(properties.migration.assessment.targetReadiness.azureSqlDatabase.readiness),\r\n    vmReadiness = tostring(properties.migration.assessment.targetReadiness.sqlServerOnAzureVirtualMachine.readiness),\r\n    miIssueCount = array_length(properties.migration.assessment.targetReadiness.azureSqlManagedInstance.issues),\r\n    sqlDbIssueCount = array_length(properties.migration.assessment.targetReadiness.azureSqlDatabase.issues),\r\n    vmIssueCount = array_length(properties.migration.assessment.targetReadiness.sqlServerOnAzureVirtualMachine.issues),\r\n    lastAssessed = tostring(properties.migration.assessment.lastAssessedTime)\r\n| project\r\n    Machine = machineName,\r\n    Database = dbName,\r\n    ['SQL MI'] = case(miReadiness =~ \"Ready\", \"✅ Ready\", miReadiness =~ \"ReadyWithConditions\", \"⚠️ Conditions\", miReadiness =~ \"NotReady\", \"❌ Not Ready\", \"—\"),\r\n    ['SQL DB'] = case(sqlDbReadiness =~ \"Ready\", \"✅ Ready\", sqlDbReadiness =~ \"ReadyWithConditions\", \"⚠️ Conditions\", sqlDbReadiness =~ \"NotReady\", \"❌ Not Ready\", \"—\"),\r\n    ['SQL VM'] = case(vmReadiness =~ \"Ready\", \"✅ Ready\", vmReadiness =~ \"ReadyWithConditions\", \"⚠️ Conditions\", vmReadiness =~ \"NotReady\", \"❌ Not Ready\", \"—\"),\r\n    ['MI Issues'] = iif(isempty(miIssueCount), 0, miIssueCount),\r\n    ['DB Issues'] = iif(isempty(sqlDbIssueCount), 0, sqlDbIssueCount),\r\n    ['VM Issues'] = iif(isempty(vmIssueCount), 0, vmIssueCount),\r\n    ['Last Assessed'] = lastAssessed,\r\n    id\r\n| order by Machine asc, Database asc",
-              "size": 2,
-              "title": "Database Migration Readiness Detail",
-              "noDataMessage": "No migration assessment results found.",
-              "showExportToExcel": true,
-              "exportFieldName": "id",
-              "exportParameterName": "SelectedMigrationDb",
-              "queryType": 1,
-              "resourceType": "microsoft.resourcegraph/resources",
-              "crossComponentResources": [
-                "{Subscription}"
-              ],
-              "gridSettings": {
-                "formatters": [
-                  {
-                    "columnMatch": "MI Issues",
-                    "formatter": 8,
-                    "formatOptions": {
-                      "min": 0,
-                      "max": 10,
-                      "palette": "greenRed"
-                    }
-                  },
-                  {
-                    "columnMatch": "DB Issues",
-                    "formatter": 8,
-                    "formatOptions": {
-                      "min": 0,
-                      "max": 10,
-                      "palette": "greenRed"
-                    }
-                  },
-                  {
-                    "columnMatch": "VM Issues",
-                    "formatter": 8,
-                    "formatOptions": {
-                      "min": 0,
-                      "max": 10,
-                      "palette": "greenRed"
-                    }
-                  },
-                  {
-                    "columnMatch": "id",
-                    "formatter": 5
-                  }
-                ],
-                "filter": true
-              }
-            },
-            "name": "query - migration-detail-grid"
-          },
-          {
-            "type": 1,
-            "content": {
-              "json": "---\r\n## Migration Issues & Blockers\r\nAggregated view of issues preventing or complicating migration to each Azure SQL target."
-            },
-            "name": "text - migration-issues-header"
-          },
-          {
-            "type": 3,
-            "content": {
-              "version": "KqlItem/1.0",
-              "query": "resources\r\n| where type == \"microsoft.azurearcdata/sqlserverinstances/databases\"\r\n    and ('*' in ({ResourceGroup}) or resourceGroup in ({ResourceGroup}))\r\n| where isnotempty(properties.migration.assessment)\r\n| mv-expand miIssue = properties.migration.assessment.targetReadiness.azureSqlManagedInstance.issues\r\n| extend\r\n    IssueId = tostring(miIssue.issueId),\r\n    Description = tostring(miIssue.description),\r\n    ImpactedFeature = tostring(miIssue.impactedFeature),\r\n    Severity = case(\r\n        tostring(miIssue.severity) =~ \"Error\", \"Blocker\",\r\n        tostring(miIssue.severity) =~ \"Warning\", \"Warning\",\r\n        tostring(miIssue.severity)),\r\n    Target = \"Azure SQL MI\",\r\n    Database = name,\r\n    Machine = tostring(split(id, \"/\")[8])\r\n| where isnotempty(IssueId)\r\n| union (\r\n    resources\r\n    | where type == \"microsoft.azurearcdata/sqlserverinstances/databases\"\r\n        and ('*' in ({ResourceGroup}) or resourceGroup in ({ResourceGroup}))\r\n    | where isnotempty(properties.migration.assessment)\r\n    | mv-expand dbIssue = properties.migration.assessment.targetReadiness.azureSqlDatabase.issues\r\n    | extend\r\n        IssueId = tostring(dbIssue.issueId),\r\n        Description = tostring(dbIssue.description),\r\n        ImpactedFeature = tostring(dbIssue.impactedFeature),\r\n        Severity = case(\r\n            tostring(dbIssue.severity) =~ \"Error\", \"Blocker\",\r\n            tostring(dbIssue.severity) =~ \"Warning\", \"Warning\",\r\n            tostring(dbIssue.severity)),\r\n        Target = \"Azure SQL DB\",\r\n        Database = name,\r\n        Machine = tostring(split(id, \"/\")[8])\r\n    | where isnotempty(IssueId)\r\n)\r\n| summarize AffectedDatabases = dcount(strcat(Machine, '/', Database)) by Target, Severity, IssueId, Description, ImpactedFeature\r\n| order by AffectedDatabases desc",
-              "size": 2,
-              "title": "Migration Issues Summary (across all assessed databases)",
-              "noDataMessage": "No migration issues found — all databases may be ready for migration.",
-              "showExportToExcel": true,
-              "queryType": 1,
-              "resourceType": "microsoft.resourcegraph/resources",
-              "crossComponentResources": [
-                "{Subscription}"
-              ],
-              "gridSettings": {
-                "formatters": [
-                  {
-                    "columnMatch": "Severity",
-                    "formatter": 18,
-                    "formatOptions": {
-                      "thresholdsOptions": "icons",
-                      "thresholdsGrid": [
-                        {
-                          "operator": "==",
-                          "thresholdValue": "Blocker",
-                          "representation": "Sev0",
-                          "text": "Blocker"
-                        },
-                        {
-                          "operator": "==",
-                          "thresholdValue": "Warning",
-                          "representation": "Sev2",
-                          "text": "Warning"
-                        },
-                        {
-                          "operator": "Default",
-                          "thresholdValue": null,
-                          "representation": "Sev3",
-                          "text": "{0}{1}"
-                        }
-                      ]
-                    }
-                  },
-                  {
-                    "columnMatch": "AffectedDatabases",
-                    "formatter": 8,
-                    "formatOptions": {
-                      "min": 1,
-                      "max": 20,
-                      "palette": "yellowOrangeRed"
-                    }
-                  },
-                  {
-                    "columnMatch": "Description",
-                    "formatter": 0,
-                    "formatOptions": {
-                      "customColumnWidthSetting": "50%"
-                    }
-                  }
-                ],
-                "filter": true,
-                "labelSettings": [
-                  {
-                    "columnId": "Target",
-                    "label": "Target Platform"
-                  },
-                  {
-                    "columnId": "IssueId",
-                    "label": "Issue ID"
-                  },
-                  {
-                    "columnId": "ImpactedFeature",
-                    "label": "Impacted Feature"
-                  },
-                  {
-                    "columnId": "AffectedDatabases",
-                    "label": "Affected DBs"
-                  }
-                ]
-              }
-            },
-            "name": "query - migration-issues"
-          },
-          {
-            "type": 3,
-            "content": {
-              "version": "KqlItem/1.0",
-              "query": "resources\r\n| where type == \"microsoft.azurearcdata/sqlserverinstances/databases\"\r\n    and ('*' in ({ResourceGroup}) or resourceGroup in ({ResourceGroup}))\r\n| where isnotempty(properties.migration.assessment)\r\n| extend\r\n    miReadiness = tostring(properties.migration.assessment.targetReadiness.azureSqlManagedInstance.readiness),\r\n    sqlDbReadiness = tostring(properties.migration.assessment.targetReadiness.azureSqlDatabase.readiness),\r\n    vmReadiness = tostring(properties.migration.assessment.targetReadiness.sqlServerOnAzureVirtualMachine.readiness)\r\n| summarize\r\n    MI_Ready = countif(miReadiness =~ \"Ready\"),\r\n    MI_Conditional = countif(miReadiness =~ \"ReadyWithConditions\"),\r\n    MI_NotReady = countif(miReadiness =~ \"NotReady\"),\r\n    DB_Ready = countif(sqlDbReadiness =~ \"Ready\"),\r\n    DB_Conditional = countif(sqlDbReadiness =~ \"ReadyWithConditions\"),\r\n    DB_NotReady = countif(sqlDbReadiness =~ \"NotReady\"),\r\n    VM_Ready = countif(vmReadiness =~ \"Ready\"),\r\n    VM_Conditional = countif(vmReadiness =~ \"ReadyWithConditions\"),\r\n    VM_NotReady = countif(vmReadiness =~ \"NotReady\")\r\n| project\r\n    Target = pack_array(\"Azure SQL MI\", \"Azure SQL DB\", \"SQL Server on VM\"),\r\n    Ready = pack_array(MI_Ready, DB_Ready, VM_Ready),\r\n    Conditional = pack_array(MI_Conditional, DB_Conditional, VM_Conditional),\r\n    NotReady = pack_array(MI_NotReady, DB_NotReady, VM_NotReady)\r\n| mv-expand Target to typeof(string), Ready to typeof(long), Conditional to typeof(long), NotReady to typeof(long)",
+              "query": "resources\n| where type == \"microsoft.azurearcdata/sqlserverinstances\"\n    and ('*' in ({ResourceGroup}) or resourceGroup in ({ResourceGroup}))\n| extend m = properties.migration.assessment\n| where isnotnull(m)\n| extend\n    mi = tostring(m.skuRecommendationResults.azureSqlManagedInstance.recommendationStatus),\n    db = tostring(m.skuRecommendationResults.azureSqlDatabase.recommendationStatus),\n    vm = tostring(m.skuRecommendationResults.azureSqlVirtualMachine.recommendationStatus)\n| summarize\n    MI_Ready = countif(mi =~ \"Ready\"), MI_Cond = countif(mi =~ \"ConditionallyReady\"), MI_Not = countif(mi =~ \"NotReady\"),\n    DB_Ready = countif(db =~ \"Ready\"), DB_Cond = countif(db =~ \"ConditionallyReady\"), DB_Not = countif(db =~ \"NotReady\"),\n    VM_Ready = countif(vm =~ \"Ready\"), VM_Cond = countif(vm =~ \"ConditionallyReady\"), VM_Not = countif(vm =~ \"NotReady\")\n| project\n    Target = pack_array(\"Azure SQL MI\", \"Azure SQL DB\", \"SQL Server on VM\"),\n    Ready = pack_array(MI_Ready, DB_Ready, VM_Ready),\n    [\"Conditionally Ready\"] = pack_array(MI_Cond, DB_Cond, VM_Cond),\n    [\"Not Ready\"] = pack_array(MI_Not, DB_Not, VM_Not)\n| mv-expand Target to typeof(string), Ready to typeof(long), [\"Conditionally Ready\"] to typeof(long), [\"Not Ready\"] to typeof(long)",
               "size": 3,
               "title": "Readiness Comparison Across Targets",
               "noDataMessage": "No assessment data available.",
@@ -2474,56 +2336,1038 @@
                 "xAxis": "Target",
                 "yAxis": [
                   "Ready",
-                  "Conditional",
-                  "NotReady"
+                  "Conditionally Ready",
+                  "Not Ready"
                 ],
                 "seriesLabelSettings": [
                   {
                     "seriesName": "Ready",
-                    "label": "Ready",
                     "color": "green"
                   },
                   {
-                    "seriesName": "Conditional",
-                    "label": "Ready with Conditions",
+                    "seriesName": "Conditionally Ready",
                     "color": "orange"
                   },
                   {
-                    "seriesName": "NotReady",
-                    "label": "Not Ready",
+                    "seriesName": "Not Ready",
                     "color": "redBright"
                   }
                 ]
               }
             },
-            "name": "query - migration-comparison-chart"
-          },
-          {
-            "type": 1,
-            "content": {
-              "json": "---\r\n## SKU Recommendations\r\nRight-sized SKU recommendations based on performance data collected by the Arc agent."
-            },
-            "name": "text - sku-header"
+            "name": "query - mig-comparison"
           },
           {
             "type": 3,
             "content": {
               "version": "KqlItem/1.0",
-              "query": "resources\r\n| where type == \"microsoft.azurearcdata/sqlserverinstances/databases\"\r\n    and ('*' in ({ResourceGroup}) or resourceGroup in ({ResourceGroup}))\r\n| where isnotempty(properties.migration.skuRecommendation)\r\n| extend\r\n    machineName = tostring(split(id, \"/\")[8]),\r\n    dbName = name,\r\n    miSku = properties.migration.skuRecommendation.azureSqlManagedInstance,\r\n    sqlDbSku = properties.migration.skuRecommendation.azureSqlDatabase,\r\n    vmSku = properties.migration.skuRecommendation.sqlServerOnAzureVirtualMachine\r\n| project\r\n    Machine = machineName,\r\n    Database = dbName,\r\n    ['MI - Service Tier'] = tostring(miSku.serviceTier),\r\n    ['MI - Compute'] = tostring(miSku.computeSize),\r\n    ['MI - Storage GB'] = tostring(miSku.storageMaxSizeInMb),\r\n    ['SQL DB - Service Tier'] = tostring(sqlDbSku.serviceTier),\r\n    ['SQL DB - Compute'] = tostring(sqlDbSku.computeSize),\r\n    ['VM Size'] = tostring(vmSku.virtualMachineSize),\r\n    ['VM - Data Disks'] = tostring(vmSku.dataDiskCount),\r\n    ['VM - Storage GB'] = tostring(vmSku.storageMaxSizeInMb)\r\n| order by Machine asc, Database asc",
-              "size": 2,
-              "title": "SKU Recommendations by Database",
-              "noDataMessage": "No SKU recommendations available. Ensure performance data collection is enabled and sufficient data has been gathered (typically 24+ hours).",
+              "query": "resources\n| where type == \"microsoft.azurearcdata/sqlserverinstances\"\n    and ('*' in ({ResourceGroup}) or resourceGroup in ({ResourceGroup}))\n| extend m = properties.migration.assessment\n| where isnotnull(m)\n| extend\n    serverName = name,\n    sqlVersion = tostring(properties.version),\n    edition = tostring(properties.edition),\n    vCores = tostring(properties.vCore),\n    licenseType = tostring(properties.licenseType),\n    strategy = tostring(m.settings.strategy),\n    assessmentTime = todatetime(m.assessmentUploadTime),\n    mi_status = tostring(m.skuRecommendationResults.azureSqlManagedInstance.recommendationStatus),\n    mi_totalCost = todouble(m.skuRecommendationResults.azureSqlManagedInstance.monthlyCost.totalCost),\n    mi_blockers = toint(m.skuRecommendationResults.azureSqlManagedInstance.numberOfServerBlockerIssues),\n    db_status = tostring(m.skuRecommendationResults.azureSqlDatabase.recommendationStatus),\n    db_totalCost = todouble(m.skuRecommendationResults.azureSqlDatabase.monthlyCost.totalCost),\n    db_blockers = toint(m.skuRecommendationResults.azureSqlDatabase.numberOfServerBlockerIssues),\n    vm_status = tostring(m.skuRecommendationResults.azureSqlVirtualMachine.recommendationStatus),\n    vm_totalCost = todouble(m.skuRecommendationResults.azureSqlVirtualMachine.monthlyCost.totalCost),\n    vm_blockers = toint(m.skuRecommendationResults.azureSqlVirtualMachine.numberOfServerBlockerIssues)\n| project id, serverName, resourceGroup, sqlVersion, edition, vCores, licenseType, strategy,\n    mi_status, mi_totalCost, mi_blockers,\n    db_status, db_totalCost, db_blockers,\n    vm_status, vm_totalCost, vm_blockers,\n    assessmentTime\n| order by serverName asc",
+              "size": 0,
+              "title": "Migration Assessment by Server (select a row for detail)",
+              "noDataMessage": "No migration assessment data found. Enable migration assessment on Arc-enabled SQL Server instances.",
+              "exportedParameters": [
+                {
+                  "fieldName": "id",
+                  "parameterName": "selectedServerId",
+                  "parameterType": 1
+                },
+                {
+                  "fieldName": "serverName",
+                  "parameterName": "selectedServerName",
+                  "parameterType": 1
+                }
+              ],
               "showExportToExcel": true,
               "queryType": 1,
               "resourceType": "microsoft.resourcegraph/resources",
               "crossComponentResources": [
                 "{Subscription}"
               ],
+              "visualization": "table",
               "gridSettings": {
-                "filter": true
+                "formatters": [
+                  {
+                    "columnMatch": "id",
+                    "formatter": 5
+                  },
+                  {
+                    "columnMatch": "mi_status",
+                    "formatter": 18,
+                    "formatOptions": {
+                      "thresholdsOptions": "icons",
+                      "thresholdsGrid": [
+                        {
+                          "operator": "==",
+                          "thresholdValue": "Ready",
+                          "representation": "success",
+                          "text": "{0}{1}"
+                        },
+                        {
+                          "operator": "==",
+                          "thresholdValue": "ConditionallyReady",
+                          "representation": "2",
+                          "text": "{0}{1}"
+                        },
+                        {
+                          "operator": "==",
+                          "thresholdValue": "NotReady",
+                          "representation": "4",
+                          "text": "{0}{1}"
+                        },
+                        {
+                          "operator": "Default",
+                          "thresholdValue": null,
+                          "representation": "unknown",
+                          "text": "{0}{1}"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "columnMatch": "db_status",
+                    "formatter": 18,
+                    "formatOptions": {
+                      "thresholdsOptions": "icons",
+                      "thresholdsGrid": [
+                        {
+                          "operator": "==",
+                          "thresholdValue": "Ready",
+                          "representation": "success",
+                          "text": "{0}{1}"
+                        },
+                        {
+                          "operator": "==",
+                          "thresholdValue": "ConditionallyReady",
+                          "representation": "2",
+                          "text": "{0}{1}"
+                        },
+                        {
+                          "operator": "==",
+                          "thresholdValue": "NotReady",
+                          "representation": "4",
+                          "text": "{0}{1}"
+                        },
+                        {
+                          "operator": "Default",
+                          "thresholdValue": null,
+                          "representation": "unknown",
+                          "text": "{0}{1}"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "columnMatch": "vm_status",
+                    "formatter": 18,
+                    "formatOptions": {
+                      "thresholdsOptions": "icons",
+                      "thresholdsGrid": [
+                        {
+                          "operator": "==",
+                          "thresholdValue": "Ready",
+                          "representation": "success",
+                          "text": "{0}{1}"
+                        },
+                        {
+                          "operator": "==",
+                          "thresholdValue": "ConditionallyReady",
+                          "representation": "2",
+                          "text": "{0}{1}"
+                        },
+                        {
+                          "operator": "==",
+                          "thresholdValue": "NotReady",
+                          "representation": "4",
+                          "text": "{0}{1}"
+                        },
+                        {
+                          "operator": "Default",
+                          "thresholdValue": null,
+                          "representation": "unknown",
+                          "text": "{0}{1}"
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "columnMatch": "mi_totalCost",
+                    "formatter": 0,
+                    "numberFormat": {
+                      "unit": 0,
+                      "options": {
+                        "style": "decimal",
+                        "minimumFractionDigits": 2,
+                        "maximumFractionDigits": 2
+                      }
+                    }
+                  },
+                  {
+                    "columnMatch": "db_totalCost",
+                    "formatter": 0,
+                    "numberFormat": {
+                      "unit": 0,
+                      "options": {
+                        "style": "decimal",
+                        "minimumFractionDigits": 2,
+                        "maximumFractionDigits": 2
+                      }
+                    }
+                  },
+                  {
+                    "columnMatch": "vm_totalCost",
+                    "formatter": 0,
+                    "numberFormat": {
+                      "unit": 0,
+                      "options": {
+                        "style": "decimal",
+                        "minimumFractionDigits": 2,
+                        "maximumFractionDigits": 2
+                      }
+                    }
+                  },
+                  {
+                    "columnMatch": "mi_blockers|db_blockers|vm_blockers",
+                    "formatter": 18,
+                    "formatOptions": {
+                      "thresholdsOptions": "icons",
+                      "thresholdsGrid": [
+                        {
+                          "operator": "==",
+                          "thresholdValue": "0",
+                          "representation": "success",
+                          "text": "{0}{1}"
+                        },
+                        {
+                          "operator": ">",
+                          "thresholdValue": "0",
+                          "representation": "4",
+                          "text": "{0}{1}"
+                        },
+                        {
+                          "operator": "Default",
+                          "thresholdValue": null,
+                          "representation": "Blank",
+                          "text": "{0}{1}"
+                        }
+                      ]
+                    }
+                  }
+                ],
+                "filter": true,
+                "labelSettings": [
+                  {
+                    "columnId": "serverName",
+                    "label": "Server"
+                  },
+                  {
+                    "columnId": "resourceGroup",
+                    "label": "Resource Group"
+                  },
+                  {
+                    "columnId": "sqlVersion",
+                    "label": "SQL Version"
+                  },
+                  {
+                    "columnId": "edition",
+                    "label": "Edition"
+                  },
+                  {
+                    "columnId": "vCores",
+                    "label": "vCores"
+                  },
+                  {
+                    "columnId": "licenseType",
+                    "label": "License"
+                  },
+                  {
+                    "columnId": "strategy",
+                    "label": "Strategy"
+                  },
+                  {
+                    "columnId": "mi_status",
+                    "label": "MI Readiness"
+                  },
+                  {
+                    "columnId": "mi_totalCost",
+                    "label": "MI $/mo"
+                  },
+                  {
+                    "columnId": "mi_blockers",
+                    "label": "MI Blockers"
+                  },
+                  {
+                    "columnId": "db_status",
+                    "label": "DB Readiness"
+                  },
+                  {
+                    "columnId": "db_totalCost",
+                    "label": "DB $/mo"
+                  },
+                  {
+                    "columnId": "db_blockers",
+                    "label": "DB Blockers"
+                  },
+                  {
+                    "columnId": "vm_status",
+                    "label": "VM Readiness"
+                  },
+                  {
+                    "columnId": "vm_totalCost",
+                    "label": "VM $/mo"
+                  },
+                  {
+                    "columnId": "vm_blockers",
+                    "label": "VM Blockers"
+                  },
+                  {
+                    "columnId": "assessmentTime",
+                    "label": "Last Assessment"
+                  }
+                ]
               }
             },
-            "name": "query - sku-recommendations"
+            "name": "query - mig-summary-grid"
+          },
+          {
+            "type": 12,
+            "content": {
+              "version": "NotebookGroup/1.0",
+              "groupType": "editable",
+              "title": "Server Details",
+              "items": [
+                {
+                  "type": 9,
+                  "content": {
+                    "version": "KqlParameterItem/1.0",
+                    "parameters": [
+                      {
+                        "id": "50c01355-d112-41da-bc8a-e57b89f1e169",
+                        "version": "KqlParameterItem/1.0",
+                        "name": "selectedTab",
+                        "type": 1,
+                        "isHiddenWhenLocked": true,
+                        "value": "cost"
+                      }
+                    ],
+                    "style": "pills",
+                    "queryType": 1,
+                    "resourceType": "microsoft.resourcegraph/resources"
+                  },
+                  "name": "mig-hidden-tab-param"
+                },
+                {
+                  "type": 1,
+                  "content": {
+                    "json": "## {selectedServerName}\n---"
+                  },
+                  "name": "mig-detail-header"
+                },
+                {
+                  "type": 11,
+                  "content": {
+                    "version": "LinkItem/1.0",
+                    "style": "tabs",
+                    "links": [
+                      {
+                        "id": "a6e9167d-0e74-4297-bdbf-8d6417a4b060",
+                        "cellValue": "selectedTab",
+                        "linkTarget": "parameter",
+                        "linkLabel": "Cost Comparison",
+                        "subTarget": "cost",
+                        "style": "link"
+                      },
+                      {
+                        "id": "0603d347-b3e5-4531-ae9e-b39c8cfe72d4",
+                        "cellValue": "selectedTab",
+                        "linkTarget": "parameter",
+                        "linkLabel": "Settings",
+                        "subTarget": "settings",
+                        "style": "link"
+                      },
+                      {
+                        "id": "ab5a5ead-8271-4062-be3c-f0b18fa42917",
+                        "cellValue": "selectedTab",
+                        "linkTarget": "parameter",
+                        "linkLabel": "SQL Managed Instance",
+                        "subTarget": "mi",
+                        "style": "link"
+                      },
+                      {
+                        "id": "b5db3ba9-0140-4551-bc32-b44d5924ac09",
+                        "cellValue": "selectedTab",
+                        "linkTarget": "parameter",
+                        "linkLabel": "SQL Database",
+                        "subTarget": "db",
+                        "style": "link"
+                      },
+                      {
+                        "id": "aa1ccb8d-9636-4ef4-8e74-e9e5df46217f",
+                        "cellValue": "selectedTab",
+                        "linkTarget": "parameter",
+                        "linkLabel": "SQL Virtual Machine",
+                        "subTarget": "vm",
+                        "style": "link"
+                      },
+                      {
+                        "id": "a04da58f-c5de-4d03-bf76-791a8c212e34",
+                        "cellValue": "selectedTab",
+                        "linkTarget": "parameter",
+                        "linkLabel": "Assessment Issues",
+                        "subTarget": "issues",
+                        "style": "link"
+                      }
+                    ]
+                  },
+                  "name": "mig-detail-tabs"
+                },
+                {
+                  "type": 12,
+                  "content": {
+                    "version": "NotebookGroup/1.0",
+                    "groupType": "editable",
+                    "items": [
+                      {
+                        "type": 1,
+                        "content": {
+                          "json": "### Side-by-Side Target Comparison\nMonthly cost and recommended SKU across all three targets."
+                        },
+                        "name": "mig-cost-header"
+                      },
+                      {
+                        "type": 3,
+                        "content": {
+                          "version": "KqlItem/1.0",
+                          "query": "resources\n| where type == \"microsoft.azurearcdata/sqlserverinstances\"\n| where id == \"{selectedServerId}\"\n| extend m = properties.migration.assessment.skuRecommendationResults\n| extend targets = pack_array(\n    pack(\"Target\", \"SQL Managed Instance\",\n         \"Status\", tostring(m.azureSqlManagedInstance.recommendationStatus),\n         \"Blockers\", toint(m.azureSqlManagedInstance.numberOfServerBlockerIssues),\n         \"ComputeCost\", todouble(m.azureSqlManagedInstance.monthlyCost.computeCost),\n         \"StorageCost\", todouble(m.azureSqlManagedInstance.monthlyCost.storageCost),\n         \"SqlLicCost\", todouble(m.azureSqlManagedInstance.monthlyCost.sqlLicenseCost),\n         \"WinLicCost\", todouble(m.azureSqlManagedInstance.monthlyCost.windowsLicenseCost),\n         \"TotalCost\", todouble(m.azureSqlManagedInstance.monthlyCost.totalCost),\n         \"SKU\", strcat(tostring(m.azureSqlManagedInstance.targetSku.category.sqlServiceTier), \" \", tostring(m.azureSqlManagedInstance.targetSku.category.hardwareType), \" \", tostring(m.azureSqlManagedInstance.targetSku.computeSize), \" vCores\")),\n    pack(\"Target\", \"SQL Database\",\n         \"Status\", tostring(m.azureSqlDatabase.recommendationStatus),\n         \"Blockers\", toint(m.azureSqlDatabase.numberOfServerBlockerIssues),\n         \"ComputeCost\", todouble(m.azureSqlDatabase.monthlyCost.computeCost),\n         \"StorageCost\", todouble(m.azureSqlDatabase.monthlyCost.storageCost),\n         \"SqlLicCost\", todouble(m.azureSqlDatabase.monthlyCost.sqlLicenseCost),\n         \"WinLicCost\", todouble(m.azureSqlDatabase.monthlyCost.windowsLicenseCost),\n         \"TotalCost\", todouble(m.azureSqlDatabase.monthlyCost.totalCost),\n         \"SKU\", strcat(tostring(m.azureSqlDatabase.targetSku.category.sqlServiceTier), \" \", tostring(m.azureSqlDatabase.targetSku.computeSize), \" vCores\")),\n    pack(\"Target\", \"SQL Server on Azure VM\",\n         \"Status\", tostring(m.azureSqlVirtualMachine.recommendationStatus),\n         \"Blockers\", toint(m.azureSqlVirtualMachine.numberOfServerBlockerIssues),\n         \"ComputeCost\", todouble(m.azureSqlVirtualMachine.monthlyCost.computeCost),\n         \"StorageCost\", todouble(m.azureSqlVirtualMachine.monthlyCost.storageCost),\n         \"SqlLicCost\", todouble(m.azureSqlVirtualMachine.monthlyCost.sqlLicenseCost),\n         \"WinLicCost\", todouble(m.azureSqlVirtualMachine.monthlyCost.windowsLicenseCost),\n         \"TotalCost\", todouble(m.azureSqlVirtualMachine.monthlyCost.totalCost),\n         \"SKU\", tostring(m.azureSqlVirtualMachine.targetSku.virtualMachineSize.azureSkuName)))\n| mv-expand t = targets\n| project\n    Target = tostring(t.Target),\n    Status = tostring(t.Status),\n    Blockers = toint(t.Blockers),\n    [\"Compute $/mo\"] = todouble(t.ComputeCost),\n    [\"Storage $/mo\"] = todouble(t.StorageCost),\n    [\"SQL License $/mo\"] = todouble(t.SqlLicCost),\n    [\"Windows License $/mo\"] = todouble(t.WinLicCost),\n    [\"Total $/mo\"] = todouble(t.TotalCost),\n    [\"Recommended SKU\"] = tostring(t.SKU)",
+                          "size": 0,
+                          "noDataMessage": "No SKU recommendation results for this server.",
+                          "showExportToExcel": true,
+                          "queryType": 1,
+                          "resourceType": "microsoft.resourcegraph/resources",
+                          "crossComponentResources": [
+                            "{Subscription}"
+                          ],
+                          "visualization": "table",
+                          "gridSettings": {
+                            "formatters": [
+                              {
+                                "columnMatch": "Status",
+                                "formatter": 18,
+                                "formatOptions": {
+                                  "thresholdsOptions": "icons",
+                                  "thresholdsGrid": [
+                                    {
+                                      "operator": "==",
+                                      "thresholdValue": "Ready",
+                                      "representation": "success",
+                                      "text": "{0}{1}"
+                                    },
+                                    {
+                                      "operator": "==",
+                                      "thresholdValue": "ConditionallyReady",
+                                      "representation": "2",
+                                      "text": "{0}{1}"
+                                    },
+                                    {
+                                      "operator": "==",
+                                      "thresholdValue": "NotReady",
+                                      "representation": "4",
+                                      "text": "{0}{1}"
+                                    },
+                                    {
+                                      "operator": "Default",
+                                      "thresholdValue": null,
+                                      "representation": "unknown",
+                                      "text": "{0}{1}"
+                                    }
+                                  ]
+                                }
+                              },
+                              {
+                                "columnMatch": "Compute .*/mo|Storage .*/mo|SQL License .*/mo|Windows License .*/mo|Total .*/mo",
+                                "formatter": 0,
+                                "numberFormat": {
+                                  "unit": 0,
+                                  "options": {
+                                    "style": "decimal",
+                                    "minimumFractionDigits": 2,
+                                    "maximumFractionDigits": 2
+                                  }
+                                }
+                              }
+                            ],
+                            "filter": true
+                          }
+                        },
+                        "name": "query - mig-cost-grid"
+                      }
+                    ]
+                  },
+                  "conditionalVisibility": {
+                    "parameterName": "selectedTab",
+                    "comparison": "isEqualTo",
+                    "value": "cost"
+                  },
+                  "name": "mig-cost-tab"
+                },
+                {
+                  "type": 12,
+                  "content": {
+                    "version": "NotebookGroup/1.0",
+                    "groupType": "editable",
+                    "items": [
+                      {
+                        "type": 1,
+                        "content": {
+                          "json": "### Assessment Configuration\nSettings used for the SKU recommendation and cost calculations."
+                        },
+                        "name": "mig-settings-header"
+                      },
+                      {
+                        "type": 3,
+                        "content": {
+                          "version": "KqlItem/1.0",
+                          "query": "resources\n| where type == \"microsoft.azurearcdata/sqlserverinstances\"\n| where id == \"{selectedServerId}\"\n| extend m = properties.migration.assessment\n| project\n    Strategy = tostring(m.settings.strategy),\n    [\"Target Location\"] = tostring(m.settings.targetLocation),\n    Currency = tostring(m.settings.currency),\n    Percentile = toint(m.settings.percentile),\n    [\"Lookback (days)\"] = toint(m.settings.lookbackPeriodInDays),\n    [\"Discount %\"] = todouble(m.settings.discountPercentage),\n    [\"Compute/Storage Cost Option\"] = tostring(m.settings.costOptions.computeAndStorageCostOption),\n    [\"SQL License Option\"] = tostring(m.settings.costOptions.sqlLicenseCostOption),\n    [\"Windows License Option\"] = tostring(m.settings.costOptions.windowsLicenseCostOption),\n    [\"Last Assessment Upload\"] = todatetime(m.assessmentUploadTime)",
+                          "size": 0,
+                          "noDataMessage": "No assessment settings available.",
+                          "showExportToExcel": true,
+                          "queryType": 1,
+                          "resourceType": "microsoft.resourcegraph/resources",
+                          "crossComponentResources": [
+                            "{Subscription}"
+                          ],
+                          "visualization": "table",
+                          "gridSettings": {
+                            "filter": true
+                          }
+                        },
+                        "name": "query - mig-settings-grid"
+                      }
+                    ]
+                  },
+                  "conditionalVisibility": {
+                    "parameterName": "selectedTab",
+                    "comparison": "isEqualTo",
+                    "value": "settings"
+                  },
+                  "name": "mig-settings-tab"
+                },
+                {
+                  "type": 12,
+                  "content": {
+                    "version": "NotebookGroup/1.0",
+                    "groupType": "editable",
+                    "items": [
+                      {
+                        "type": 1,
+                        "content": {
+                          "json": "### Recommended SKU & Cost"
+                        },
+                        "name": "mig-mi-sku-header"
+                      },
+                      {
+                        "type": 3,
+                        "content": {
+                          "version": "KqlItem/1.0",
+                          "query": "resources\n| where type == \"microsoft.azurearcdata/sqlserverinstances\"\n| where id == \"{selectedServerId}\"\n| extend t = properties.migration.assessment.skuRecommendationResults.azureSqlManagedInstance\n| project\n    Status = tostring(t.recommendationStatus),\n    BlockerIssues = toint(t.numberOfServerBlockerIssues),\n    ServiceTier = tostring(t.targetSku.category.sqlServiceTier),\n    HardwareType = tostring(t.targetSku.category.hardwareType),\n    ComputeTier = tostring(t.targetSku.category.computeTier),\n    PurchasingModel = tostring(t.targetSku.category.sqlPurchasingModel),\n    vCores = toint(t.targetSku.computeSize),\n    ZoneRedundant = tostring(t.targetSku.category.zoneRedundancyAvailable),\n    [\"Max Storage (MB)\"] = todouble(t.targetSku.storageMaxSizeInMb),\n    [\"Predicted Data (MB)\"] = todouble(t.targetSku.predictedDataSizeInMb),\n    [\"Predicted Log (MB)\"] = todouble(t.targetSku.predictedLogSizeInMb),\n    [\"Max Throughput (MBps)\"] = todouble(t.targetSku.maxThroughputMBps),\n    [\"Max IOPS\"] = todouble(t.targetSku.maxStorageIops),\n    [\"Compute $/mo\"] = todouble(t.monthlyCost.computeCost),\n    [\"Storage $/mo\"] = todouble(t.monthlyCost.storageCost),\n    [\"Total $/mo\"] = todouble(t.monthlyCost.totalCost)",
+                          "size": 0,
+                          "noDataMessage": "No MI recommendation available.",
+                          "showExportToExcel": true,
+                          "queryType": 1,
+                          "resourceType": "microsoft.resourcegraph/resources",
+                          "crossComponentResources": [
+                            "{Subscription}"
+                          ],
+                          "visualization": "table",
+                          "gridSettings": {
+                            "filter": true,
+                            "formatters": [
+                              {
+                                "columnMatch": "Status",
+                                "formatter": 18,
+                                "formatOptions": {
+                                  "thresholdsOptions": "icons",
+                                  "thresholdsGrid": [
+                                    {
+                                      "operator": "==",
+                                      "thresholdValue": "Ready",
+                                      "representation": "success",
+                                      "text": "{0}{1}"
+                                    },
+                                    {
+                                      "operator": "==",
+                                      "thresholdValue": "ConditionallyReady",
+                                      "representation": "2",
+                                      "text": "{0}{1}"
+                                    },
+                                    {
+                                      "operator": "==",
+                                      "thresholdValue": "NotReady",
+                                      "representation": "4",
+                                      "text": "{0}{1}"
+                                    },
+                                    {
+                                      "operator": "Default",
+                                      "thresholdValue": null,
+                                      "representation": "unknown",
+                                      "text": "{0}{1}"
+                                    }
+                                  ]
+                                }
+                              },
+                              {
+                                "columnMatch": "Compute .*/mo|Storage .*/mo|Total .*/mo",
+                                "formatter": 0,
+                                "numberFormat": {
+                                  "unit": 0,
+                                  "options": {
+                                    "style": "decimal",
+                                    "minimumFractionDigits": 2,
+                                    "maximumFractionDigits": 2
+                                  }
+                                }
+                              }
+                            ]
+                          }
+                        },
+                        "name": "query - mig-mi-detail"
+                      },
+                      {
+                        "type": 1,
+                        "content": {
+                          "json": "### Pricing Options\nAll pricing tiers for this target, lowest cost first."
+                        },
+                        "name": "mig-mi-cost-header"
+                      },
+                      {
+                        "type": 3,
+                        "content": {
+                          "version": "KqlItem/1.0",
+                          "query": "resources\n| where type == \"microsoft.azurearcdata/sqlserverinstances\"\n| where id == \"{selectedServerId}\"\n| extend t = properties.migration.assessment.skuRecommendationResults.azureSqlManagedInstance\n| mv-expand option = t.monthlyCostOptions\n| project\n    [\"Cost Option\"] = tostring(option.keyName),\n    [\"Compute $/mo\"] = todouble(option.keyValue.computeCost),\n    [\"Storage $/mo\"] = todouble(option.keyValue.storageCost),\n    [\"IOPS $/mo\"] = todouble(option.keyValue.iopsCost),\n    [\"Total $/mo\"] = todouble(option.keyValue.computeCost) + todouble(option.keyValue.storageCost) + todouble(option.keyValue.iopsCost)\n| order by [\"Total $/mo\"] asc",
+                          "size": 0,
+                          "noDataMessage": "No pricing options available.",
+                          "showExportToExcel": true,
+                          "queryType": 1,
+                          "resourceType": "microsoft.resourcegraph/resources",
+                          "crossComponentResources": [
+                            "{Subscription}"
+                          ],
+                          "visualization": "table",
+                          "gridSettings": {
+                            "filter": true,
+                            "formatters": [
+                              {
+                                "columnMatch": "Compute .*/mo|Storage .*/mo|IOPS .*/mo|Total .*/mo",
+                                "formatter": 0,
+                                "numberFormat": {
+                                  "unit": 0,
+                                  "options": {
+                                    "style": "decimal",
+                                    "minimumFractionDigits": 2,
+                                    "maximumFractionDigits": 2
+                                  }
+                                }
+                              }
+                            ]
+                          }
+                        },
+                        "name": "query - mig-mi-pricing"
+                      }
+                    ]
+                  },
+                  "conditionalVisibility": {
+                    "parameterName": "selectedTab",
+                    "comparison": "isEqualTo",
+                    "value": "mi"
+                  },
+                  "name": "mig-mi-tab"
+                },
+                {
+                  "type": 12,
+                  "content": {
+                    "version": "NotebookGroup/1.0",
+                    "groupType": "editable",
+                    "items": [
+                      {
+                        "type": 1,
+                        "content": {
+                          "json": "### Recommended SKU & Cost"
+                        },
+                        "name": "mig-db-sku-header"
+                      },
+                      {
+                        "type": 3,
+                        "content": {
+                          "version": "KqlItem/1.0",
+                          "query": "resources\n| where type == \"microsoft.azurearcdata/sqlserverinstances\"\n| where id == \"{selectedServerId}\"\n| extend t = properties.migration.assessment.skuRecommendationResults.azureSqlDatabase\n| project\n    Status = tostring(t.recommendationStatus),\n    BlockerIssues = toint(t.numberOfServerBlockerIssues),\n    ServiceTier = tostring(t.targetSku.category.sqlServiceTier),\n    HardwareType = tostring(t.targetSku.category.hardwareType),\n    ComputeTier = tostring(t.targetSku.category.computeTier),\n    PurchasingModel = tostring(t.targetSku.category.sqlPurchasingModel),\n    vCores = toint(t.targetSku.computeSize),\n    ZoneRedundant = tostring(t.targetSku.category.zoneRedundancyAvailable),\n    [\"Max Storage (MB)\"] = todouble(t.targetSku.storageMaxSizeInMb),\n    [\"Predicted Data (MB)\"] = todouble(t.targetSku.predictedDataSizeInMb),\n    [\"Predicted Log (MB)\"] = todouble(t.targetSku.predictedLogSizeInMb),\n    [\"Max Throughput (MBps)\"] = todouble(t.targetSku.maxThroughputMBps),\n    [\"Max IOPS\"] = todouble(t.targetSku.maxStorageIops),\n    [\"Compute $/mo\"] = todouble(t.monthlyCost.computeCost),\n    [\"Storage $/mo\"] = todouble(t.monthlyCost.storageCost),\n    [\"Total $/mo\"] = todouble(t.monthlyCost.totalCost)",
+                          "size": 0,
+                          "noDataMessage": "No SQL DB recommendation available.",
+                          "showExportToExcel": true,
+                          "queryType": 1,
+                          "resourceType": "microsoft.resourcegraph/resources",
+                          "crossComponentResources": [
+                            "{Subscription}"
+                          ],
+                          "visualization": "table",
+                          "gridSettings": {
+                            "filter": true,
+                            "formatters": [
+                              {
+                                "columnMatch": "Status",
+                                "formatter": 18,
+                                "formatOptions": {
+                                  "thresholdsOptions": "icons",
+                                  "thresholdsGrid": [
+                                    {
+                                      "operator": "==",
+                                      "thresholdValue": "Ready",
+                                      "representation": "success",
+                                      "text": "{0}{1}"
+                                    },
+                                    {
+                                      "operator": "==",
+                                      "thresholdValue": "ConditionallyReady",
+                                      "representation": "2",
+                                      "text": "{0}{1}"
+                                    },
+                                    {
+                                      "operator": "==",
+                                      "thresholdValue": "NotReady",
+                                      "representation": "4",
+                                      "text": "{0}{1}"
+                                    },
+                                    {
+                                      "operator": "Default",
+                                      "thresholdValue": null,
+                                      "representation": "unknown",
+                                      "text": "{0}{1}"
+                                    }
+                                  ]
+                                }
+                              },
+                              {
+                                "columnMatch": "Compute .*/mo|Storage .*/mo|Total .*/mo",
+                                "formatter": 0,
+                                "numberFormat": {
+                                  "unit": 0,
+                                  "options": {
+                                    "style": "decimal",
+                                    "minimumFractionDigits": 2,
+                                    "maximumFractionDigits": 2
+                                  }
+                                }
+                              }
+                            ]
+                          }
+                        },
+                        "name": "query - mig-db-detail"
+                      },
+                      {
+                        "type": 1,
+                        "content": {
+                          "json": "### Pricing Options\nAll pricing tiers for this target, lowest cost first."
+                        },
+                        "name": "mig-db-cost-header"
+                      },
+                      {
+                        "type": 3,
+                        "content": {
+                          "version": "KqlItem/1.0",
+                          "query": "resources\n| where type == \"microsoft.azurearcdata/sqlserverinstances\"\n| where id == \"{selectedServerId}\"\n| extend t = properties.migration.assessment.skuRecommendationResults.azureSqlDatabase\n| mv-expand option = t.monthlyCostOptions\n| project\n    [\"Cost Option\"] = tostring(option.keyName),\n    [\"Compute $/mo\"] = todouble(option.keyValue.computeCost),\n    [\"Storage $/mo\"] = todouble(option.keyValue.storageCost),\n    [\"IOPS $/mo\"] = todouble(option.keyValue.iopsCost),\n    [\"Total $/mo\"] = todouble(option.keyValue.computeCost) + todouble(option.keyValue.storageCost) + todouble(option.keyValue.iopsCost)\n| order by [\"Total $/mo\"] asc",
+                          "size": 0,
+                          "noDataMessage": "No pricing options available.",
+                          "showExportToExcel": true,
+                          "queryType": 1,
+                          "resourceType": "microsoft.resourcegraph/resources",
+                          "crossComponentResources": [
+                            "{Subscription}"
+                          ],
+                          "visualization": "table",
+                          "gridSettings": {
+                            "filter": true,
+                            "formatters": [
+                              {
+                                "columnMatch": "Compute .*/mo|Storage .*/mo|IOPS .*/mo|Total .*/mo",
+                                "formatter": 0,
+                                "numberFormat": {
+                                  "unit": 0,
+                                  "options": {
+                                    "style": "decimal",
+                                    "minimumFractionDigits": 2,
+                                    "maximumFractionDigits": 2
+                                  }
+                                }
+                              }
+                            ]
+                          }
+                        },
+                        "name": "query - mig-db-pricing"
+                      }
+                    ]
+                  },
+                  "conditionalVisibility": {
+                    "parameterName": "selectedTab",
+                    "comparison": "isEqualTo",
+                    "value": "db"
+                  },
+                  "name": "mig-db-tab"
+                },
+                {
+                  "type": 12,
+                  "content": {
+                    "version": "NotebookGroup/1.0",
+                    "groupType": "editable",
+                    "items": [
+                      {
+                        "type": 1,
+                        "content": {
+                          "json": "### Recommended VM Configuration"
+                        },
+                        "name": "mig-vm-sku-header"
+                      },
+                      {
+                        "type": 3,
+                        "content": {
+                          "version": "KqlItem/1.0",
+                          "query": "resources\n| where type == \"microsoft.azurearcdata/sqlserverinstances\"\n| where id == \"{selectedServerId}\"\n| extend vm = properties.migration.assessment.skuRecommendationResults.azureSqlVirtualMachine\n| project\n    Status = tostring(vm.recommendationStatus),\n    BlockerIssues = toint(vm.numberOfServerBlockerIssues),\n    VMFamily = tostring(vm.targetSku.virtualMachineSize.virtualMachineFamily),\n    [\"Azure SKU\"] = tostring(vm.targetSku.virtualMachineSize.azureSkuName),\n    [\"VM Size\"] = tostring(vm.targetSku.virtualMachineSize.sizeName),\n    vCPUs = toint(vm.targetSku.virtualMachineSize.vCPUsAvailable),\n    [\"Compute vCores\"] = toint(vm.targetSku.computeSize),\n    [\"Predicted Data (MB)\"] = todouble(vm.targetSku.predictedDataSizeInMb),\n    [\"Predicted Log (MB)\"] = todouble(vm.targetSku.predictedLogSizeInMb)",
+                          "size": 0,
+                          "noDataMessage": "No VM recommendation available.",
+                          "showExportToExcel": true,
+                          "queryType": 1,
+                          "resourceType": "microsoft.resourcegraph/resources",
+                          "crossComponentResources": [
+                            "{Subscription}"
+                          ],
+                          "visualization": "table",
+                          "gridSettings": {
+                            "filter": true,
+                            "formatters": [
+                              {
+                                "columnMatch": "Status",
+                                "formatter": 18,
+                                "formatOptions": {
+                                  "thresholdsOptions": "icons",
+                                  "thresholdsGrid": [
+                                    {
+                                      "operator": "==",
+                                      "thresholdValue": "Ready",
+                                      "representation": "success",
+                                      "text": "{0}{1}"
+                                    },
+                                    {
+                                      "operator": "==",
+                                      "thresholdValue": "ConditionallyReady",
+                                      "representation": "2",
+                                      "text": "{0}{1}"
+                                    },
+                                    {
+                                      "operator": "==",
+                                      "thresholdValue": "NotReady",
+                                      "representation": "4",
+                                      "text": "{0}{1}"
+                                    },
+                                    {
+                                      "operator": "Default",
+                                      "thresholdValue": null,
+                                      "representation": "unknown",
+                                      "text": "{0}{1}"
+                                    }
+                                  ]
+                                }
+                              }
+                            ]
+                          }
+                        },
+                        "name": "query - mig-vm-detail"
+                      },
+                      {
+                        "type": 1,
+                        "content": {
+                          "json": "### Disk Configuration"
+                        },
+                        "name": "mig-vm-disk-header"
+                      },
+                      {
+                        "type": 3,
+                        "content": {
+                          "version": "KqlItem/1.0",
+                          "query": "resources\n| where type == \"microsoft.azurearcdata/sqlserverinstances\"\n| where id == \"{selectedServerId}\"\n| extend vm = properties.migration.assessment.skuRecommendationResults.azureSqlVirtualMachine\n| extend allDisks = pack_array(\n    pack(\"Usage\", \"Data\", \"Disks\", vm.targetSku.dataDiskSizes),\n    pack(\"Usage\", \"Log\", \"Disks\", vm.targetSku.logDiskSizes),\n    pack(\"Usage\", \"TempDB\", \"Disks\", vm.targetSku.tempDbDiskSizes))\n| mv-expand diskGroup = allDisks\n| mv-expand disk = diskGroup.Disks\n| project\n    Usage = tostring(diskGroup.Usage),\n    [\"Disk Type\"] = tostring(disk.diskType),\n    [\"Disk Size\"] = tostring(disk.size),\n    [\"Max Size (GiB)\"] = todouble(disk.maxSizeInGib),\n    [\"Max Throughput (MBps)\"] = todouble(disk.maxThroughputInMbps),\n    [\"Max IOPS\"] = todouble(disk.maxIops),\n    Caching = tostring(disk.caching),\n    Redundancy = tostring(disk.redundancy)",
+                          "size": 0,
+                          "noDataMessage": "No disk configuration available.",
+                          "showExportToExcel": true,
+                          "queryType": 1,
+                          "resourceType": "microsoft.resourcegraph/resources",
+                          "crossComponentResources": [
+                            "{Subscription}"
+                          ],
+                          "visualization": "table",
+                          "gridSettings": {
+                            "filter": true
+                          }
+                        },
+                        "name": "query - mig-vm-disks"
+                      },
+                      {
+                        "type": 1,
+                        "content": {
+                          "json": "### Pricing Options\nAll pricing tiers for this target, lowest cost first."
+                        },
+                        "name": "mig-vm-cost-header"
+                      },
+                      {
+                        "type": 3,
+                        "content": {
+                          "version": "KqlItem/1.0",
+                          "query": "resources\n| where type == \"microsoft.azurearcdata/sqlserverinstances\"\n| where id == \"{selectedServerId}\"\n| extend t = properties.migration.assessment.skuRecommendationResults.azureSqlVirtualMachine\n| mv-expand option = t.monthlyCostOptions\n| project\n    [\"Cost Option\"] = tostring(option.keyName),\n    [\"Compute $/mo\"] = todouble(option.keyValue.computeCost),\n    [\"Storage $/mo\"] = todouble(option.keyValue.storageCost),\n    [\"IOPS $/mo\"] = todouble(option.keyValue.iopsCost),\n    [\"Total $/mo\"] = todouble(option.keyValue.computeCost) + todouble(option.keyValue.storageCost) + todouble(option.keyValue.iopsCost)\n| order by [\"Total $/mo\"] asc",
+                          "size": 0,
+                          "noDataMessage": "No pricing options available.",
+                          "showExportToExcel": true,
+                          "queryType": 1,
+                          "resourceType": "microsoft.resourcegraph/resources",
+                          "crossComponentResources": [
+                            "{Subscription}"
+                          ],
+                          "visualization": "table",
+                          "gridSettings": {
+                            "filter": true,
+                            "formatters": [
+                              {
+                                "columnMatch": "Compute .*/mo|Storage .*/mo|IOPS .*/mo|Total .*/mo",
+                                "formatter": 0,
+                                "numberFormat": {
+                                  "unit": 0,
+                                  "options": {
+                                    "style": "decimal",
+                                    "minimumFractionDigits": 2,
+                                    "maximumFractionDigits": 2
+                                  }
+                                }
+                              }
+                            ]
+                          }
+                        },
+                        "name": "query - mig-vm-pricing"
+                      }
+                    ]
+                  },
+                  "conditionalVisibility": {
+                    "parameterName": "selectedTab",
+                    "comparison": "isEqualTo",
+                    "value": "vm"
+                  },
+                  "name": "mig-vm-tab"
+                },
+                {
+                  "type": 12,
+                  "content": {
+                    "version": "NotebookGroup/1.0",
+                    "groupType": "editable",
+                    "items": [
+                      {
+                        "type": 1,
+                        "content": {
+                          "json": "### Server-Level Assessment Issues\nIssues and warnings that may impact migration to specific targets."
+                        },
+                        "name": "mig-issues-header"
+                      },
+                      {
+                        "type": 3,
+                        "content": {
+                          "version": "KqlItem/1.0",
+                          "query": "resources\n| where type == \"microsoft.azurearcdata/sqlserverinstances\"\n| where id == \"{selectedServerId}\"\n| mv-expand issue = properties.migration.assessment.serverAssessments\n| project\n    [\"Target Platform\"] = tostring(issue.appliesToMigrationTargetPlatform),\n    Category = tostring(issue.issueCategory),\n    Feature = tostring(issue.featureId),\n    [\"More Information\"] = tostring(issue.moreInformation)",
+                          "size": 0,
+                          "noDataMessage": "No assessment issues found for this server.",
+                          "showExportToExcel": true,
+                          "queryType": 1,
+                          "resourceType": "microsoft.resourcegraph/resources",
+                          "crossComponentResources": [
+                            "{Subscription}"
+                          ],
+                          "visualization": "table",
+                          "gridSettings": {
+                            "filter": true,
+                            "formatters": [
+                              {
+                                "columnMatch": "Category",
+                                "formatter": 18,
+                                "formatOptions": {
+                                  "thresholdsOptions": "icons",
+                                  "thresholdsGrid": [
+                                    {
+                                      "operator": "==",
+                                      "thresholdValue": "Warning",
+                                      "representation": "2",
+                                      "text": "{0}{1}"
+                                    },
+                                    {
+                                      "operator": "==",
+                                      "thresholdValue": "Error",
+                                      "representation": "4",
+                                      "text": "{0}{1}"
+                                    },
+                                    {
+                                      "operator": "==",
+                                      "thresholdValue": "Issue",
+                                      "representation": "4",
+                                      "text": "{0}{1}"
+                                    },
+                                    {
+                                      "operator": "Default",
+                                      "thresholdValue": null,
+                                      "representation": "unknown",
+                                      "text": "{0}{1}"
+                                    }
+                                  ]
+                                }
+                              }
+                            ]
+                          }
+                        },
+                        "name": "query - mig-issues-grid"
+                      },
+                      {
+                        "type": 1,
+                        "content": {
+                          "json": "### Impacted Objects Summary\nObjects affected by migration compatibility issues, per target."
+                        },
+                        "name": "mig-impacted-header"
+                      },
+                      {
+                        "type": 3,
+                        "content": {
+                          "version": "KqlItem/1.0",
+                          "query": "resources\n| where type == \"microsoft.azurearcdata/sqlserverinstances\"\n| where id == \"{selectedServerId}\"\n| extend summary = properties.migration.assessment.impactedObjectsSummary\n| extend items = pack_array(\n    pack(\"Target\", \"SQL Managed Instance\", \"Items\", summary.azureSqlManagedInstance),\n    pack(\"Target\", \"SQL Database\", \"Items\", summary.azureSqlDatabase))\n| mv-expand grp = items\n| mv-expand item = grp.Items\n| project\n    Target = tostring(grp.Target),\n    Category = tostring(item.issueCategory),\n    Feature = tostring(item.featureId),\n    [\"Number Impacted\"] = toint(item.numberImpacted)",
+                          "size": 0,
+                          "noDataMessage": "No impacted-object summary available.",
+                          "showExportToExcel": true,
+                          "queryType": 1,
+                          "resourceType": "microsoft.resourcegraph/resources",
+                          "crossComponentResources": [
+                            "{Subscription}"
+                          ],
+                          "visualization": "table",
+                          "gridSettings": {
+                            "filter": true
+                          }
+                        },
+                        "name": "query - mig-impacted-grid"
+                      }
+                    ]
+                  },
+                  "conditionalVisibility": {
+                    "parameterName": "selectedTab",
+                    "comparison": "isEqualTo",
+                    "value": "issues"
+                  },
+                  "name": "mig-issues-tab"
+                }
+              ]
+            },
+            "conditionalVisibility": {
+              "parameterName": "selectedServerId",
+              "comparison": "isNotEqualTo",
+              "value": ""
+            },
+            "name": "mig-detail-group"
           }
         ]
       },
